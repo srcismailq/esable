@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finops-frontend
+  labels: { app: finops-app, tier: frontend, env: production }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { role: frontend }
+  template:
+    metadata:
+      labels: { role: frontend }
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        resources:
+          requests: { cpu: "300m", memory: "256Mi" }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finops-backend-api
+  labels: { app: finops-app, tier: api, env: production }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { role: api }
+  template:
+    metadata:
+      labels: { role: api }
+    spec:
+      containers:
+      - name: python-api
+        image: kennethreitz/httpbin
+        resources:
+          requests: { cpu: "500m", memory: "512Mi" }
+        ports:
+        - containerPort: 80
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finops-db-worker
+  labels: { app: finops-app, tier: database, env: production, pci-dss: "true" }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { role: db }
+  template:
+    metadata:
+      labels: { role: db }
+    spec:
+      containers:
+      - name: redis
+        image: redis:alpine
+        resources:
+          requests: { cpu: "500m", memory: "512Mi" }

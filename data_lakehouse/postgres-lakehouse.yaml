@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: StatefulSet # Ensures single-pod safety to prevent database corruption
+metadata:
+  name: postgres-lakehouse
+  namespace: default
+  labels:
+    app: postgres-lakehouse
+spec:
+  serviceName: postgres-lakehouse-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-lakehouse
+  template:
+    metadata:
+      labels:
+        app: postgres-lakehouse
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          env:
+            - name: POSTGRES_DB
+              value: postgres # Allows init.sql to create metrics_lakehouse cleanly
+            - name: POSTGRES_USER
+              value: lakehouse_admin
+            - name: POSTGRES_PASSWORD
+              value: lakehouse_secure_pass123
+          ports:
+            - containerPort: 5432
+              name: postgres
+          resources:
+            requests:
+              memory: "256Mi" # Low-overhead baseline
+              cpu: "200m"
+            limits:
+              memory: "512Mi" # Low-overhead cap to protect your laptop's RAM
+              cpu: "500m"
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+            - name: init-script
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-lakehouse-pvc
+        - name: init-script
+          configMap:
+            name: postgres-init-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-lakehouse-service
+  namespace: default
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+  selector:
+    app: postgres-lakehouse

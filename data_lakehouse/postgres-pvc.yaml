@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-lakehouse-pvc
+  namespace: default
+spec:
+  # Standard default storage class built directly into Minikube
+  storageClassName: standard 
+  accessModes:
+    - ReadWriteOnce # Means the storage can only be mounted by one Postgres pod at a time
+  resources:
+    requests:
+      # 2Gi is optimized for local Minikube developer velocity. 
+      # PROD NOTE: In cloud environments, use dynamic volume expansion (e.g., AWS gp3)
+      storage: 2Gi 
