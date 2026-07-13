@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: raw_lakehouse
+    database: metrics_lakehouse # try and remove this if seeing issues
+    schema: public # The default schema where init.sql created our landing table
+    tables:
+      - name: raw_metrics_store
+        description: "Immutable, JSONB-optimized landing zone for telemetry, purchases, and invoices."
