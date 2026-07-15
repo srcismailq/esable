@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cubejs
+  namespace: default
+  labels:
+    app: cubejs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cubejs
+  template:
+    metadata:
+      labels:
+        app: cubejs
+    spec:
+    # doing this cause im seeing multiple files in cube playground. it is detecting symlinks as files and stuff.
+      initContainers:
+        - name: model-extractor
+          image: busybox:1.36
+          command: ['sh', '-c', 'cp /mnt/configmap/DailyB2cMetrics.yml /cube/conf/model/DailyB2cMetrics.yml']
+          volumeMounts:
+            - name: configmap-volume
+              mountPath: /mnt/configmap
+            - name: shared-model-volume
+              mountPath: /cube/conf/model
+      containers:
+        - name: cubejs
+          image: cubejs/cube:v0.36s
+          ports:
+            - containerPort: 4000
+              name: api
+          env:
+            - name: CUBEJS_DB_TYPE
+              value: "postgres"
+            - name: CUBEJS_DB_HOST
+              value: "postgres-lakehouse-service"
+            - name: CUBEJS_DB_PORT
+              value: "5432"
+            - name: CUBEJS_DB_NAME
+              value: "metrics_lakehouse"
+            - name: CUBEJS_DB_USER
+              value: "lakehouse_admin"
+            - name: CUBEJS_DB_PASS
+              value: "lakehouse_secure_pass123"
+            - name: CUBEJS_API_SECRET
+              value: "cube_secure_token_abc123"
+            - name: CUBEJS_DEV_MODE
+              value: "true"
+          volumeMounts:
+            # Mount the clean, isolated folder containing our true raw file copy
+            - name: shared-model-volume
+              mountPath: /cube/conf/model 
+     
+      volumes:
+        # A clean, empty temporary directory shared between the init container and Cube
+        - name: shared-model-volume
+          emptyDir: {}
+        # Our source ConfigMap containing your dbt mapping
+        - name: configmap-volume
+          configMap:
+            name: cube-schema-config
+            
+apiVersion: v1
+kind: Service
+metadata:
+  name: cubejs-service
+  namespace: default
+spec:
+  type: ClusterIP
+  ports:
+    - port: 4000
+      targetPort: 4000
+  selector:
+    app: cubejs

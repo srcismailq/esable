@@ -1,0 +1,107 @@
+cubes:
+  - name: DailyB2cMetrics
+    sql: SELECT * FROM analytics_marts.fact_daily_b2c_metrics
+
+    refresh_key:
+      sql: SELECT MAX(session_date) FROM analytics_marts.fact_daily_b2c_metrics
+
+    measures:
+      - name: total_sessions
+        type: count
+        description: Total active sessions recorded
+
+      - name: total_requests
+        sql: total_server_requests
+        type: sum
+
+      - name: total_errors_5xx
+        sql: total_server_errors_5xx
+        type: sum
+
+      - name: cumulative_response_time_ms
+        sql: cumulative_response_time_ms
+        type: sum
+
+      - name: cumulative_cpu_seconds_consumed
+        sql: cumulative_cpu_seconds_consumed
+        type: sum
+
+      - name: final_session_duration_minutes
+        sql: final_session_duration_minutes
+        type: max
+
+      - name: individual_revenue_usd
+        sql: individual_revenue_usd
+        type: sum
+        format: currency
+
+      - name: individual_premium_unlocks
+        sql: individual_premium_unlocks
+        type: sum
+
+      - name: individual_monthly_subs
+        sql: individual_monthly_subs
+        type: sum
+
+      - name: attributed_ml_compute_cost_usd
+        sql: attributed_ml_compute_cost_usd
+        type: sum
+        format: currency
+
+      - name: attributed_core_compute_cost_usd
+        sql: attributed_core_compute_cost_usd
+        type: sum
+        format: currency
+
+      - name: attributed_shared_storage_cost_usd
+        sql: attributed_shared_storage_cost_usd
+        type: sum
+        format: currency
+
+      - name: attributed_marketing_cac_usd
+        sql: attributed_marketing_cac_usd
+        type: sum
+        format: currency
+
+      - name: net_profit_usd
+        sql: calculated_net_profit_usd
+        type: sum
+        format: currency
+
+    dimensions:
+      - name: session_id
+        sql: session_id
+        type: string
+        primary_key: true
+
+      - name: user_id
+        sql: user_id
+        type: string
+
+      - name: user_region
+        sql: user_region
+        type: string
+
+      - name: marketing_channel
+        sql: marketing_channel
+        type: string
+
+      - name: app_version
+        sql: app_version
+        type: string
+
+      - name: device_tier
+        sql: device_tier
+        type: string
+
+      - name: device_model
+        sql: device_model
+        type: string
+
+      - name: device_os
+        sql: device_os
+        type: string
+
+      - name: session_date
+        sql: session_date
+        type: time
