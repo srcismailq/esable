@@ -19,7 +19,7 @@ spec:
       initContainers:
         - name: model-extractor
           image: busybox:1.36
-          command: ['sh', '-c', 'cp /mnt/configmap/DailyB2cMetrics.yaml /cube/conf/model/DailyB2cMetrics.yml']
+          command: ['sh', '-c', 'cp /mnt/configmap/DailyB2CMetrics.yml /cube/conf/model/DailyB2CMetrics.yml']
           volumeMounts:
             - name: configmap-volume
               mountPath: /mnt/configmap

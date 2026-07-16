@@ -1,6 +1,6 @@
 # 1. Recreate the ConfigMap directly from your local file
 kubectl delete configmap cube-schema-config --ignore-not-found
-kubectl create configmap cube-schema-config --from-file=DailyB2cMetrics.yml=DailyB2cMetrics.yaml
+kubectl create configmap cube-schema-config --from-file=DailyB2CMetrics.yml=DailyB2CMetrics.yml
 
 # 2. Trigger the rolling restart so Cube updates instantly
 kubectl rollout restart deployment/cubejs
