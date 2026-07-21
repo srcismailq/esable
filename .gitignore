@@ -15,3 +15,5 @@ archivd/
 ai-notes/
 .DS_Store
 *.log
+
+cube_api/sync_DailyB2cMetrics.ps1
