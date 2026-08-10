@@ -3,12 +3,14 @@ import sys
 import httpx
 import logging
 import asyncio
+import json
 from groq import AsyncGroq
 
 # Import your strongly typed configurations and compiled graph engine
 from client_engine.config import settings
 from client_engine.graph_engine import app, EngineState
 
+SHOW_DIAGNOSTICS = True
 # Configure terminal-facing baseline logging architecture
 logging.basicConfig(
     level=logging.WARNING, # Suppress noisy debug logs for clean terminal view
@@ -22,10 +24,6 @@ async def terminal_event_loop() -> None:
     the interactive shell loop for the FinOps Semantic Engine.
     """
     # --- CRITICAL FIX 1: ELIMINATE DUAL CONFIGURATION LOOKUP PATHS ---
-    if not os.environ.get("GROQ_API_KEY"):
-        print("\n🚨 [CONFIGURATION ERROR] GROQ_API_KEY environment variable is not set.")
-        print("Please run: $env:GROQ_API_KEY='your_key_here' in your active PowerShell terminal window.")
-        return
 
     print("\n" + "=" * 60)
     print("⚡ FinOps Semantic Engine CLI Platform Active")
@@ -35,7 +33,7 @@ async def terminal_event_loop() -> None:
 
     # --- CRITICAL FIX 1: INITIALIZE DIRECTLY WITH VERIFIED OS ENVIRONMENT STRING ---
     # Instantiate the Groq client pool as a standard long-lived object block
-    shared_async_groq = AsyncGroq(api_key=os.environ["GROQ_API_KEY"])
+    shared_async_groq = AsyncGroq(api_key=settings.groq_api_key)
 
     # Nest the interactive loop context cleanly inside the long-lived HTTPX connection pool
     async with httpx.AsyncClient(timeout=settings.network_timeout_seconds) as pooled_http:
@@ -74,6 +72,12 @@ async def terminal_event_loop() -> None:
                 
                 # Fire the graph execution loop asynchronously across the pool context
                 output_state = await app.ainvoke(initial_state, config=config_envelope)
+
+                if SHOW_DIAGNOSTICS and output_state.get("cube_json_query"):
+                    
+                    print("\n[DIAGNOSTIC] 📡 OUTBOUND CUBE.JS JSON QUERY:")
+                    print(json.dumps(output_state["cube_json_query"], indent=2))
+                    print("-" * 50)
 
                 # Clear separation of output print layouts
                 if output_state.get("error_message") is not None:
