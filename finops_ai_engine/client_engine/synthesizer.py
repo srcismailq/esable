@@ -19,6 +19,7 @@ CRITICAL INFERENCE BOUNDARIES:
 3. If the data payload context contains a truncation warning marker, evaluate the rows strictly as a partial sequential subset. Never describe the slice as if it represents the complete dataset total.
 4. Format all financial figures clearly as USD (e.g., $1,450.25). 
 5. Translate raw technical string tokens (like 'attributed_core_compute_cost_usd') into human-readable phrases (like 'core compute spend') in your final output sentences.
+6. Trust that the provided database response matrix has already been pre-filtered by the constraints specified in the user's question. You may safely assume rows belong to filtered attributes (like app versions) mentioned in the prompt, even if those specific filter columns are omitted from the payload keys.
 """
 
 # ==========================================

@@ -1,12 +1,15 @@
 import json
 import logging
 from typing import Any, Dict, List, Literal
+import groq
 from groq import AsyncGroq
-from pydantic import BaseModel, Field, model_validator, ConfigDict
+from pydantic import BaseModel, Field, model_validator, ConfigDict, ValidationError
 from .config import settings
 from .schema_registry import Measures, Dimensions, TimeDimensions
 
 logger = logging.getLogger("client_engine.translator")
+
+UNBOUNDED_TIME_TOKEN = "Last 10000 days"
 
 # ==========================================
 # 1. THE STRICT PYDANTIC TARGET SCHEMAS
@@ -15,12 +18,12 @@ logger = logging.getLogger("client_engine.translator")
 class CubeTimeDimensionBlock(BaseModel):
     """Enforces the nested object structure expected by Cube.js time entries."""
     dimension: TimeDimensions
-    granularity: Literal["day", "week", "month"] = Field(
-        description="The temporal bucket size. Must be 'day', 'week', or 'month'."
+    granularity: Literal["second", "minute", "hour", "day", "week", "month", "quarter", "year"] = Field(
+        description="The temporal bucket size. Must be 'second','minute', 'hour', 'day', 'week', 'month', 'quarter', or 'year'."
     )
     date_range: str = Field(
         serialization_alias="dateRange",
-        description="Relative time string. Examples: 'Last 30 days', 'Last 15 days', 'Yesterday'"
+        description=f"Relative time window string. For all-time or unbounded queries, you MUST use '{UNBOUNDED_TIME_TOKEN}'."
     )
 
     model_config = ConfigDict(extra="forbid")
@@ -63,20 +66,6 @@ class CubeQueryModel(BaseModel):
         description="The maximum rows to return. Specify 0 if no specific row limit is requested."
     )
 
-    # DIAGNOSTIC FIX: Pass the ellipses (...) marker as the absolute first positional argument.
-    # This explicitly tells Pydantic's OpenAPI exporter that this field is structurally mandatory,
-    # forcing its inclusion in the JSON Schema 'required' array context.
-    order: List[tuple[str, Literal["asc", "desc"]]] = Field(
-        ...,
-        description="List of [member, direction] array pairs. Output an empty list [ ] if no sort is requested."
-    )
-    
-    # DIAGNOSTIC FIX: Pass the ellipses (...) marker as the absolute first positional argument.
-    # Forces 'limit' directly into the JSON Schema 'required' array context.
-    limit: int = Field(
-        ...,
-        description="The maximum rows to return. Output 0 if no explicit row limit is requested."
-    )
 
     model_config = ConfigDict(extra="forbid")
 
@@ -86,7 +75,10 @@ class CubeQueryModel(BaseModel):
         Enforces local geometric safety across the ordering array collection 
         at the master model boundary layer to protect Minikube infrastructure.
         """
-        all_valid_tokens = [m.value for m in Measures] + [d.value for d in Dimensions]
+        all_valid_tokens = [m.value for m in Measures] + [d.value for d in Dimensions] + [t.value for t in TimeDimensions]
+
+        # Track tokens to prevent the LLM from sending duplicate sorting keys
+        seen_tokens = set()
         
         for idx, pair in enumerate(self.order):
             if not isinstance(pair, tuple) or len(pair) != 2:
@@ -99,6 +91,11 @@ class CubeQueryModel(BaseModel):
                 
             if direction not in ["asc", "desc"]:
                 raise ValueError(f"Order direction '{direction}' at index {idx} must be strictly 'asc' or 'desc'.")
+
+             # Key collision check to prevent silent overwrites downstream
+            if member in seen_tokens:
+                raise ValueError(f"Duplicate order target '{member}' found at index {idx}. Field can only be sorted once.")
+            seen_tokens.add(member)
                 
         return self
 
@@ -133,8 +130,6 @@ Time Dimensions (Temporal columns only):
 RULES:
 1. You must ONLY select from the allowed data contract metrics lists above. Never invent or guess column tokens.
 2. If the user specifies ordering, determine the column and direction (asc/desc) and populate the order array as a nested list pair, e.g., [["DailyB2cMetrics.net_profit_usd", "desc"]].
-3. If the user asks for a date range (e.g., last 12 days, last 3 days), you MUST populate timeDimensions using the pattern 'Last X days'.
-4. If no row limit is specified by the user, you must strictly output 0 for the limit field.
 """
 
 
@@ -150,24 +145,48 @@ async def compile_text_to_cube_query(
     target_json_schema = CubeQueryModel.model_json_schema()
 
     logger.info("Routing user question to Groq Cloud using strict JSON schema validation...")
-    
-    response = await client.chat.completions.create(
-        messages=[
-            {"role": "system", "content": system_instruction},
-            {"role": "user", "content": user_question}
-        ],
-        model=settings.llm_model,
-        temperature=0.0,
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "cube_query_response",
-                "strict": True,
-                "schema": target_json_schema
+    try:
+        response = await client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": user_question}
+            ],
+            model=settings.llm_model,
+            temperature=0.0,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "cube_query_response",
+                    "strict": True,
+                    "schema": target_json_schema
+                }
             }
-        }
-    )
-
+        )
+    except groq.BadRequestError as err:
+        print("\n🚨 [GROQ VISIBILITY] 400 GATEWAY EXCEPTION CAPTURED")
+        # Target Groq's specific internal JSON body structure
+        try:
+            # Groq exceptions store the structured error under the .body attribute
+            error_details = err.body.get("error", {})
+            print(f"Error Message: {error_details.get('message')}")
+            print(f"Error Type:    {error_details.get('type')}")
+            
+            # This is where Groq keeps the text that broke your JSON parsing rules!
+            failed_text = error_details.get("failed_generation")
+            
+            if failed_text:
+                print("\n--- [FOUND] THE RAW TEXT THAT FAILED JSON GENERATION ---")
+                print(failed_text)
+                print("-------------------------------------------------------")
+            else:
+                print("\nNo 'failed_generation' was provided by Groq's gateway.")
+                print(f"Full body: {json.dumps(err.body, indent=2)}")
+                
+        except Exception as parse_err:
+            print(f"Failed to cleanly unpack Groq exception data: {parse_err}")
+            print(f"Fallback raw error dump: {err}")
+            
+        raise err
     raw_response_content = response.choices[0].message.content
     if not raw_response_content:
         raise ValueError("Groq returned an empty response payload during translation.")
@@ -175,7 +194,12 @@ async def compile_text_to_cube_query(
     parsed_json_dict = json.loads(raw_response_content.strip())
     
     # Run the raw dictionary through Pydantic to validate parameters
-    validated_model = CubeQueryModel.model_validate(parsed_json_dict)
+    try:
+        validated_model = CubeQueryModel.model_validate(parsed_json_dict)
+    except ValidationError as exc:
+        print("\n🚨 [VISIBILITY] CRITICAL PYDANTIC ERROR")
+        print(parsed_json_dict) # ◄ PRINT RAW STRING HERE
+        raise exc
     raw_dumped_dict = validated_model.model_dump(by_alias=True)
     
     # Handle limits and prune top-level empty parameters or empty arrays manually
@@ -184,6 +208,10 @@ async def compile_text_to_cube_query(
         if key == "limit":
             if value > 0:
                 final_query_payload[key] = value
+        elif key == "order":
+            # Map list of unique tuples directly to the key-value layout required by Cube.js
+            if value:
+                final_query_payload[key] = dict(value)
         # Ensure empty arrays are completely stripped from the transport envelope
         elif value or (isinstance(value, list) and len(value) > 0):
             final_query_payload[key] = value
