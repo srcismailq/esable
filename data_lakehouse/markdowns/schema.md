@@ -1,56 +1,64 @@
-## Part 1: The Database Table Structure (The Schema)
-If you were to look at the blueprint of our database, it consists of just three columns. It is designed to act as an open landing strip that accepts any type of data without breaking. [2, 3] 
+## Schema & Ingestion Log Spec: raw_metrics_store
+This directory handles the raw ingestion layer configuration. All incoming data streams drop directly into a single open-schema table before dbt transformation.
+## 1. Table Schema
 
-* id (Integer): A simple, automatic serial number for every row we save (e.g., Row 1, Row 2, Row 3).
-* captured_at (Timestamp): The exact date and time the event arrived at our database.
-* metrics_payload (JSONB Text Block): The core data package. This is a flexible text block where all of our granular B2C fields live. [4] 
-
-------------------------------
-## Part 2: The 4 Data Shapes Stored in the Payload
-Even though everything goes into that single metrics_payload column, our mock system tags each entry with an event_type. This allows our transformation layer (dbt) to easily separate and organize them during batch processing.
-Here is exactly what is saved inside that text block for each of our four event categories:
-## 1. The App Activity Payload (event_type: "consumer_telemetry")
-Every time a consumer opens the app, scrolls, or taps a feature, this record is logged. It tracks consumer behavior alongside system performance.
-
-* session_id: A unique tracking code for that specific app open.
-* user_id: An anonymized code for the individual consumer (e.g., user_9938).
-* user_region: Where the consumer is located (e.g., US-East, EU-West).
-* marketing_channel: How this user originally found the app (e.g., TikTok_Ads, Instagram_Organic).
-* app_version: The exact software build code running on their phone (e.g., v1.2.0).
-* device_model: The physical phone they are holding (e.g., iPhone 15, Galaxy S24).
-* device_os: The operating system software (e.g., iOS 17.5, Android 14).
-* api_endpoint: The backend URL route their phone communicated with (e.g., /v1/media/upload).
-* feature_name: The user-facing app feature they interacted with (e.g., AI_Filter, Feed_Scroll).
-* http_status_code: How our servers responded (e.g., 200 for success, 500 for a system crash).
-* response_time_ms: Exactly how many milliseconds our backend took to process their click.
-* simulated_cpu_seconds: A proxy metric tracking how hard our server containers worked to fulfill that specific request.
-* session_duration_minutes: How long they kept the app open before closing it. [5] 
-
-## 2. The Revenue Payload (event_type: "consumer_purchase")
-This logs the financial receipts whenever a consumer spends money within the app.
-
-* purchase_id: A unique invoice reference number.
-* user_id: The code of the consumer who made the purchase.
-* purchase_amount_usd: The exact dollar amount processed (e.g., 4.99, 14.99).
-* purchase_category: What type of purchase it was (e.g., premium_filter_unlock, monthly_subscription).
-
-## 3. The Ad Costs Payload (event_type: "marketing_invoice")
-This records our business spending on ad platforms, which is essential for calculating user acquisition costs during batch analysis.
-
-* log_date: The calendar date of the billing period.
-* ad_platform: The advertising network used (e.g., TikTok_Ads, Meta_Ads).
-* daily_spend_usd: The total budget spent on that platform on that day.
-
-## 4. The Cloud Cost Payload (event_type: "cloud_invoice")
-This captures our global cluster operating expenses (simulating what an infrastructure tool like OpenCost would report).
-
-* log_date: The calendar date of the infrastructure bill.
-* global_compute_cost_usd: The total cost of running raw server containers and Kubernetes nodes that day.
-* global_storage_cost_usd: The total cost of database disk space and cloud file storage that day.
+* id (SERIAL / INT): Primary key. Automatic incrementing row tracker.
+* captured_at (TIMESTAMP): The exact UTC timestamp when the record reached the database.
+* metrics_payload (JSONB): Unstructured JSON block holding granular event fields, partitioned by the event_type key.
 
 ------------------------------
-## How It Works Together Without Code
-Because every single row in the database uses these exact fields, the underlying data holds clear connecting threads.
-When dbt processes this table in a batch, it groups rows by shared fields like user_id, marketing_channel, or log_date. It flattens the unstructured text into a clean table structure, allowing Cube.js to dynamically answer your granular drill-down queries.
-Does this breakdown make it easier to visualize exactly how the data layout sits on disk? If you're happy with this schema specification, let me know if you would like me to go ahead and generate the structural database and configuration files to bring this architecture to life in your Minikube repository!
+## 2. Payload Event Types## A. Consumer Telemetry (event_type: "consumer_telemetry")
+
+* session_id: Unique active app instance ID string (e.g., sess_a1b2c3d4e5f6).
+* user_id: Customer ID string (user_1000 to user_9999).
+* user_region: Regional cluster (US-East, US-West, EU-West, AP-South).
+* marketing_channel: Attribution source (TikTok_Ads, Instagram_Organic, Meta_Ads, Google_Paid, Direct_Traffic).
+* app_version: Software build version (v1.0.0, v1.1.0, v1.2.0).
+* device_tier: Hardware classification (Flagship or Budget).
+* device_model: Exact phone model (e.g., iPhone 15 Pro, Galaxy A15).
+* device_os: Operating system build (e.g., iOS 17.5, Android 11).
+* feature_name: Client UI component (AI_Filter, Feed_Scroll, Profile_Edit, Checkout_Initiate).
+* associated_service: Target backend microservice (ml-filter-service, core-api-worker, payment-gateway).
+* http_status_code: Server response code (200 or 500).
+* response_time_ms: Processing latency.
+* simulated_cpu_seconds: Float tracking processing strain (high for AI_Filter; low for standard routes).
+* session_duration_minutes: Active session length.
+
+## B. Consumer Purchase (event_type: "consumer_purchase")
+
+* purchase_id: Invoice identifier string prefixed with inv_.
+* user_id: Customer ID matching the originating telemetry session.
+* purchase_amount_usd: Transacted value (4.99, 9.99, 14.99, 29.99, 69.99, 99.99).
+* purchase_category: Items purchased (premium_filter_unlock, monthly_subscription).
+
+## C. Marketing Invoice (event_type: "marketing_invoice")
+
+* log_date: Calendar date string (YYYY-MM-DD).
+* ad_platform: Advertising network (TikTok_Ads, Meta_Ads, Google_Paid).
+* daily_spend_usd: Budget consumed (scales 40% higher on weekends in the 3-year model).
+
+## D. Cloud Invoice (event_type: "cloud_invoice")
+
+* log_date: Calendar date string (YYYY-MM-DD).
+* service_identifier: Microservice identity (core-api-worker, payment-gateway, ml-filter-service).
+* global_compute_cost_usd: Node and container runtime processing charges.
+* global_storage_cost_usd: Disk, database, and object storage charges.
+
+------------------------------
+## 3. Comparative Pipeline Execution Logic
+
+📌 Usage Note:
+
+* Use generate_45_day_data.py for simpler testing, verifying local environment connectivity, and rapid schema development.
+* Use generate_3_year_data.py for advanced testing, optimizing production dbt scaling strategies, and validating time-series models across historical macro shifts.
+
+| Feature / Metric | 45-Day Script (generate_45_day_data.py) | 3-Year Script (generate_3_year_data.py) |
+|---|---|---|
+| Timeline Span | Fixed 45 days backwards from current date. | Chronological 1,095 days (3 years) forward. |
+| Record Volumetrics | Static 1,000 telemetry records per day. | Linear growth from 200 up to 1,200 rows/day cap. |
+| Weekend Spikes | None (uniform daily volume). | +30% volume spike on Saturdays and Sundays. |
+| Session Persistence | Regenerated completely fresh per day. | Stateful 10% midnight rollover; 3-day max cap. |
+| Version Transition | Randomly distributed per record daily. | 14-day linear rollout window at boundary shifts. |
+| Cost Anomaly Window | Hardcoded spike on days 12–16. | Runaway compute spike on days 1050–1055 (4.5x). |
+| Memory Management | Accumulates all 45 days in RAM before bulk insert. | Streaming weekly batches (7-day flushes) to save RAM. |
 
