@@ -1,0 +1,14 @@
+# example profiles.yml, use as is since this is a playground sandbox
+# for a real db, this file is read by dbt from your user directory, generally, you do not want this public
+analytics_warehouse:
+  outputs:
+    dev:
+      dbname: metrics_lakehouse
+      host: localhost
+      pass: lakehouse_secure_pas123
+      port: 5432
+      schema: analytics_marts
+      threads: 4
+      type: postgres
+      user: lakehouse_admin
+  target: dev
