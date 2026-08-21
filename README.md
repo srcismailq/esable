@@ -1,4 +1,4 @@
-## FinOps Conversational Analytics Engine
+## Esable
 A FinOps assistant that lets you query your product's financial health in simple plain english, without having to manually query a db. 
 
 Just ask "which marketing channels are producing the highest return on investment in the last 6 months?" and see data grounded in your telemetry.
