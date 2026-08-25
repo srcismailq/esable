@@ -5,7 +5,7 @@ analytics_warehouse:
     dev:
       dbname: metrics_lakehouse
       host: localhost
-      pass: lakehouse_secure_pas123
+      pass: lakehouse_secure_pass123
       port: 5432
       schema: analytics_marts
       threads: 4

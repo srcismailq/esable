@@ -11,14 +11,13 @@ with session_base as (
 
 purchases_base as (
     select
-        user_id,
-        payload_timestamp::date as purchase_date,
+        session_id,
         sum(purchase_amount_usd) as total_revenue_usd,
         count(case when purchase_category = 'premium_filter_unlock' then 1 end) as total_premium_filter_unlocks,
         count(case when purchase_category = 'monthly_subscription' then 1 end) as total_monthly_subscriptions
     from {{ ref('stg_metrics_raw') }}
     where event_type = 'consumer_purchase'
-    group by 1, 2
+    group by 1
 ),
 
 -- FIXED: Marketing spend aggregated cleanly at the date level to eliminate row loop subqueries
@@ -113,8 +112,7 @@ final_metrics_allocated as (
 
     from session_base s
     left join purchases_base p 
-      on s.user_id = p.user_id 
-     and s.session_date = p.purchase_date
+      on s.session_id = p.session_id
     left join global_daily_baselines g 
       on s.session_date = g.session_date 
      and s.device_tier = g.device_tier

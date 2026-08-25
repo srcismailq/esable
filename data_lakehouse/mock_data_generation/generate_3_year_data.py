@@ -4,6 +4,7 @@ import datetime
 import psycopg2
 from psycopg2.extras import execute_values
 import uuid
+import time
 
 # Connection string mapping to your active Minikube port-forward tunnel
 DB_CONN = "host=localhost port=5432 dbname=metrics_lakehouse user=lakehouse_admin password=lakehouse_secure_pass123"
@@ -90,6 +91,7 @@ def run_pipeline():
     
     try:
         with psycopg2.connect(DB_CONN) as conn:
+            conn.autocommit = True
             with conn.cursor() as cursor:
                 
                 print("🧹 Truncating target landing store to guarantee an idempotent fresh reload...")
@@ -105,8 +107,11 @@ def run_pipeline():
                 carry_over_sessions = {}
                 
                 print(f"⏳ Processing 3 years ({total_days} days) chronologically in weekly streaming blocks...")
-                
+                total_python_time = 0
+                total_db_time = 0
+                batch_start_time = time.perf_counter() # Track when the batch building starts
                 for day_offset in range(total_days):
+                    
                     current_date = base_date + datetime.timedelta(days=day_offset)
                     day_of_week = current_date.weekday()  # 5 = Saturday, 6 = Sunday
                     is_weekend = day_of_week >= 5
@@ -168,6 +173,7 @@ def run_pipeline():
                             purchase_payload = {
                                 "event_type": "consumer_purchase",
                                 "purchase_id": f"inv_{random.randint(100000, 999999)}",
+                                "session_id": session_id,
                                 "user_id": session_state["user_id"],
                                 "purchase_amount_usd": random.choice([4.99, 9.99, 14.99, 29.99, 69.99, 99.99]),
                                 "purchase_category": random.choice(["premium_filter_unlock", "monthly_subscription"])
@@ -214,16 +220,31 @@ def run_pipeline():
                     # --- Network & RAM Safeguard Streaming Flush ---
                     # Every 7 days (or on the final day), push the chunk over the port-forward tunnel and clear memory
                     if (day_offset + 1) % 7 == 0 or (day_offset + 1) == total_days:
+                        flush_trigger_time = time.perf_counter()
+                        python_duration = flush_trigger_time - batch_start_time
+                        total_python_time += python_duration
                         print(f"📦 Streaming batch to Minikube... Chronological Milestone: Day {day_offset + 1}/{total_days} ({current_date.strftime('%Y-%m-%d')})")
-                        
+
+                        db_write_start = time.perf_counter()
+
                         insert_query = "INSERT INTO raw_metrics_store (captured_at, metrics_payload) VALUES %s"
-                        execute_values(cursor, insert_query, weekly_batch)
+                        execute_values(cursor, insert_query, weekly_batch, page_size=5000)
                         conn.commit()
+
+                        db_write_duration = time.perf_counter() - db_write_start
+                        total_db_time += db_write_duration
+                        print(f"   ⚡ Postgres network write took: {db_write_duration:.4f} seconds")
+                        
                         
                         # Wipe array clean to reset local Python memory footprint to zero
                         weekly_batch.clear()
+                        batch_start_time = time.perf_counter()
                         
         print("\n🎉 Success! Memory-safe 3-year raw data lakehouse ingestion complete.")
+        print("\n📊 --- Pipeline Ingestion Performance Summary ---")
+        print(f"⏱️ Total Time spent computing Python code:  {total_python_time:.2f} seconds")
+        print(f"⚡ Total Time spent writing over K8s tunnel: {total_db_time:.2f} seconds")
+        print(f"🚀 Combined execution lifetime:            {total_python_time + total_db_time:.2f} seconds")
         print("💡 Open up your terminal, fire off your dbt run, and check out your fresh semantic data layer insights!")
         
     except psycopg2.Error as db_err:
