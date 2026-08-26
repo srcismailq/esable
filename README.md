@@ -110,7 +110,41 @@ The platform cleanly decouples live storage volumes from active runtime clients 
 *** 
 ## <a id="setup"></a> 🛠️ 4. Installation Runbook
 
-Follow this chronological sequence to provision the local infrastructure, simulate three years of raw telemetry data, and launch the conversational FinOps engine.
+## ⚡ Quick Start (Docker Compose)
+
+The fastest way to launch the complete ecosystem without managing local Kubernetes clusters.
+
+### 1. Configure Your Credentials
+Before booting the stack, configure your environment tokens to match the application's verification rules:
+
+Create a `.env` file inside the `finops_ai_engine/` directory:
+```bash
+# Target AI model variant hosted on Groq Cloud
+LLM_MODEL="openai/gpt-oss-20b"
+GROQ_API_KEY="gsk_your_validated_groq_cloud_key"
+
+# Semantic Layer Target (Docker Internal Network or Localhost)
+CUBE_API_URL="http://localhost:4000/cubejs-api/v1/load"
+CUBEJS_API_SECRET="cube_secure_token_abc123"
+```
+
+### 2. Boot the Infrastructure
+Launch the lakehouse infrastructure, semantic API, and analytical databases instantly:
+```bash
+docker compose up
+```
+*Note: Wait for the logs to display the final initialization success message before proceeding.*
+
+### 3. Launch the AI Client
+Open a second terminal window, navigate to the client engine folder, and fire up the interactive conversational workspace:
+```bash
+cd finops_ai_engine
+python -m client_engine.cli
+```
+
+## 🛠️ Detailed Installation Runbook (Kubernetes)
+
+If you prefer to provision localized infrastructure manually, follow this chronological sequence to stream telemetry and launch the engine.
 
 ### 1. Provision Cluster Infrastructure
 Spin up a localized Kubernetes cluster with adequate hardware resources and deploy your data lakehouse and semantic layer manifests.

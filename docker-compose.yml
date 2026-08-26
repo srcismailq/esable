@@ -1,0 +1,91 @@
+version: "3.8"
+
+services:
+  postgres-lakehouse:
+    image: postgres:15-alpine
+    container_name: postgres-lakehouse
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=lakehouse_admin
+      - POSTGRES_PASSWORD=lakehouse_secure_pass123
+    ports:
+      - "5432:5432"
+      - "4000:4000"
+    volumes:
+      # Automatically executes database initialization script on first boot
+      - ./data_lakehouse/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lakehouse_admin -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  warehouse-setup:
+    image: python:3.11-slim
+    container_name: warehouse-setup
+    # Shares Postgres network namespace so hardcoded localhost:5432 works natively
+    network_mode: "service:postgres-lakehouse"
+    depends_on:
+      postgres-lakehouse:
+        condition: service_healthy
+    volumes:
+      # Mount the data generation and analytics directory contexts
+      - ./data_lakehouse/mock_data_generation:/app/mock_data_generation
+      - ./data_lakehouse/analytics_warehouse:/app/analytics_warehouse
+    working_dir: /app
+    command: >
+      sh -c "
+      echo '=== Phase 1: Installing Runtime Dependencies ===' &&
+      pip install --no-cache-dir psycopg2-binary dbt-postgres==1.11.0 &&
+      
+      echo '=== Phase 2: Seeding Simulated Lakehouse Data ===' &&
+      cd /app/mock_data_generation &&
+      python generate_3_year_data.py &&
+      
+      echo '=== Phase 3: Compiling and Executing dbt Marts ===' &&
+      cd /app/analytics_warehouse &&
+      dbt deps &&
+      dbt run --profiles-dir . &&
+      echo '=== Pipeline Execution Completed Successfully ==='
+      "
+
+  cube-api:
+    image: cubejs/cube:v0.35
+    container_name: cube-api
+    # Shares Postgres namespace for internal routing; maps port 4000 to Windows host
+    network_mode: "service:postgres-lakehouse"
+    depends_on:
+      warehouse-setup:
+        # Solves Debt 2: Cube stays paused until dbt exits with zero errors
+        condition: service_completed_successfully
+    volumes:
+      # Mounts the semantic schema directly, completely eliminating K8s symlink issues
+      - ./cube_api/DailyB2CMetrics.yml:/cube/conf/model/DailyB2CMetrics.yml
+    environment:
+      - CUBEJS_DEV_MODE=true
+      - CUBEJS_DB_TYPE=postgres
+      - CUBEJS_DB_HOST=localhost
+      - CUBEJS_DB_NAME=metrics_lakehouse
+      - CUBEJS_DB_USER=lakehouse_admin
+      - CUBEJS_DB_PASS=lakehouse_secure_pass123
+      - CUBEJS_API_SECRET=cube_secure_token_abc123
+  cube-ready-notifier:
+    image: alpine:latest
+    container_name: cube-ready-notifier
+    network_mode: "service:postgres-lakehouse"
+    depends_on:
+      warehouse-setup:
+        condition: service_completed_successfully
+    command: >
+      sh -c "
+      echo '📡 FinOps Core: Waiting for Cube API to clear background noise...' &&
+      while ! wget -qO- http://localhost:4000/cubejs-api/v1/meta >/dev/null 2>&1; do
+        sleep 2
+      done &&
+      echo '\n==================================================' &&
+      echo '🎉 SUCCESS: Cube Semantic Layer is fully ready!' &&
+      echo '👉 You can now start using the FinOps Client:' &&
+      echo '   cd finops_ai_engine' &&
+      echo '   python -m client_engine.cli' &&
+      echo '==================================================\n'
+      "
