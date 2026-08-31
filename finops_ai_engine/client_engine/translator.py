@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List, Literal, Optional
 import groq
 from groq import AsyncGroq
 from pydantic import BaseModel, Field, model_validator, ConfigDict, ValidationError
@@ -18,8 +18,11 @@ UNBOUNDED_TIME_TOKEN = "Last 10000 days"
 class CubeTimeDimensionBlock(BaseModel):
     """Enforces the nested object structure expected by Cube.js time entries."""
     dimension: TimeDimensions
-    granularity: Literal["second", "minute", "hour", "day", "week", "month", "quarter", "year"] = Field(
-        description="The temporal bucket size. Must be 'second','minute', 'hour', 'day', 'week', 'month', 'quarter', or 'year'."
+    granularity: Literal["second", "minute", "hour", "day", "week", "month", "quarter", "year", "none"] = Field(
+        description=(
+            "The temporal bucket size. Use 'none' if the user asks for 'totals', "
+            "'aggregates', or a 'grand total' over the entire period without a daily/monthly breakdown."
+        )
     )
     date_range: str = Field(
         serialization_alias="dateRange",
@@ -212,8 +215,16 @@ async def compile_text_to_cube_query(
             # Map list of unique tuples directly to the key-value layout required by Cube.js
             if value:
                 final_query_payload[key] = dict(value)
-        # Ensure empty arrays are completely stripped from the transport envelope
         elif value or (isinstance(value, list) and len(value) > 0):
-            final_query_payload[key] = value
+            if key == "timeDimensions":
+                sanitized_time_dimensions = []
+                for block in value:
+                    cleaned_block = dict(block)
+                    if cleaned_block.get("granularity") == "none":
+                        del cleaned_block["granularity"]
+                    sanitized_time_dimensions.append(cleaned_block)
+                final_query_payload[key] = sanitized_time_dimensions
+            else:
+                final_query_payload[key] = value
             
     return {"query": final_query_payload}
