@@ -228,3 +228,38 @@ async def compile_text_to_cube_query(
                 final_query_payload[key] = value
             
     return {"query": final_query_payload}
+
+def extract_query_lineage_summary(cube_json_query: Dict[str, Any]) -> str:
+    """
+    Extracts compiled database targets into a compact, prefix-free text outline.
+    Protects downstream nodes from token bloat and context erasure.
+    """
+    query = cube_json_query.get("query", {})
+    
+    def clean_token(name: str) -> str:
+        return name.split(".")[-1] if name else "unknown"
+
+    measures = [clean_token(m) for m in query.get("measures", [])]
+    dimensions = [clean_token(d) for d in query.get("dimensions", [])]
+    
+    filters_summary = []
+    for f in query.get("filters", []):
+        member = clean_token(f.get("member", ""))
+        operator = f.get("operator", "equals")
+        values = f.get("values", [])
+        filters_summary.append(f"{member} {operator} {values}")
+        
+    time_summary = []
+    for t in query.get("timeDimensions", []):
+        dimension = clean_token(t.get("dimension", ""))
+        date_range = t.get("dateRange", "unknown")
+        granularity = t.get("granularity", "none")
+        time_summary.append(f"dimension: {dimension}, range: {date_range}, granularity: {granularity}")
+
+    lines = [
+        f"Active Measures: {', '.join(measures) if measures else 'None'}",
+        f"Active Dimensions: {', '.join(dimensions) if dimensions else 'None'}",
+        f"Applied Filters: {'; '.join(filters_summary) if filters_summary else 'None'}",
+        f"Temporal Bounds: {'; '.join(time_summary) if time_summary else 'None'}"
+    ]
+    return "\n".join(lines)

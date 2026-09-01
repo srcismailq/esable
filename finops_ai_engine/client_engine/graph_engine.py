@@ -5,6 +5,7 @@ from langgraph.graph import StateGraph, END
 
 # Import your decoupled architectural service layers
 from .translator import compile_text_to_cube_query
+from .translator import extract_query_lineage_summary
 from .cube_client import execute_cube_query
 from .synthesizer import synthesize_cube_response
 
@@ -93,10 +94,14 @@ async def synthesize_response_node(state: EngineState, config: RunnableConfig) -
         return {"error_message": "System Configuration Error: Long-lived AsyncGroq client pool is missing."}
 
     try:
+        cube_json = state.get("cube_json_query") or {}
+        lineage_summary = extract_query_lineage_summary(cube_json)
+
         conversational_narrative = await synthesize_cube_response(
             client=groq_client,
             user_question=state["user_query"],
-            cube_response_payload=state["api_response"]
+            cube_response_payload=state["api_response"],
+            query_lineage=lineage_summary
         )
         return {"final_answer": conversational_narrative}
         
