@@ -35,6 +35,20 @@ class Dimensions(StrEnum):
     DEVICE_MODEL = "DailyB2cMetrics.device_model"
     DEVICE_OS = "DailyB2cMetrics.device_os"
 
+    @classmethod
+    def get_filter_validation_map(cls) -> dict[str, list[str]]:
+        """
+        Bridges the semantic dimension tokens to their strict storage-layer values.
+        Returns: dict mapping string cube identifiers to list of allowed literals.
+
+        currently hardcoded, will be refactored to have specific logic to dynamically fetch valid keys from db.
+        """
+        return {
+            cls.USER_REGION.value: ["US-East", "US-West", "EU-West", "AP-South"],
+            cls.MARKETING_CHANNEL.value: ["TikTok_Ads", "Instagram_Organic", "Meta_Ads", "Google_Paid", "Direct_Traffic"],
+            cls.DEVICE_TIER.value: ["Flagship", "Budget"]
+        }
+
 
 class TimeDimensions(StrEnum):
     """

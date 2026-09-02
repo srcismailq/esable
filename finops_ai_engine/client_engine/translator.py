@@ -116,6 +116,12 @@ def assemble_schema_context_prompt() -> str:
     available_dimensions = "\n".join([f" - {d.value}" for d in Dimensions])
     available_time = "\n".join([f" - {t.value}" for t in TimeDimensions])
 
+    # Dynamic generation of the strict filter token map
+    filter_constraints = []
+    for cube_dimension, allowed_tokens in Dimensions.get_filter_validation_map().items():
+        filter_constraints.append(f" - {cube_dimension}: {allowed_tokens}")
+    allowed_filter_literals = "\n".join(filter_constraints)
+
     return f"""
 You are a translation compiler. Your sole job is to translate human questions into a structured Cube.js query object.
 Target Cube Schema Name: DailyB2cMetrics
@@ -129,6 +135,10 @@ Dimensions (Text-based grouping columns only):
 
 Time Dimensions (Temporal columns only):
 {available_time}
+
+STRICT FILTER VALUE VALIDATION CONTRACT:
+When generating filters, if a query filters on any of the dimensions below, you must use ONLY these exact, case-sensitive string literal tokens. Never replace underscores with spaces or invent values:
+{allowed_filter_literals}
 
 RULES:
 1. You must ONLY select from the allowed data contract metrics lists above. Never invent or guess column tokens.
