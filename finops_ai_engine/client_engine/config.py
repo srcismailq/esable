@@ -23,7 +23,7 @@ class AppSettings(BaseSettings):
     
     # Your verified security access token password
     cube_secret: str = Field(
-        default="cube_secure_token_abc123",
+        default="cube_secure_token_abc123_development",
         validation_alias="CUBEJS_API_SECRET"
     )
     

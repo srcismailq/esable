@@ -10,7 +10,7 @@ from groq import AsyncGroq
 from client_engine.config import settings
 from client_engine.graph_engine import app, EngineState
 
-SHOW_DIAGNOSTICS = True
+SHOW_DIAGNOSTICS = False
 # Configure terminal-facing baseline logging architecture
 logging.basicConfig(
     level=logging.WARNING, # Suppress noisy debug logs for clean terminal view

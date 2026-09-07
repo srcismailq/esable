@@ -142,7 +142,7 @@ When generating filters, if a query filters on any of the dimensions below, you 
 
 RULES:
 1. You must ONLY select from the allowed data contract metrics lists above. Never invent or guess column tokens.
-2. If the user specifies ordering, determine the column and direction (asc/desc) and populate the order array as a nested list pair, e.g., [["DailyB2cMetrics.net_profit_usd", "desc"]].
+2. If the user specifies ordering, determine the column and direction (asc/desc) and populate the order array as a nested list pair, e.g., [["DailyB2cMetrics.net_profit_usd", "desc"]]. when asked for 'highest', 'lowest' instead of setting limit to 1, try to set it to 5 so you know if the returned data is correctly sorted
 """
 
 
