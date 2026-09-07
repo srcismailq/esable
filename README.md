@@ -3,6 +3,10 @@ A FinOps assistant that lets you query your product's financial health in simple
 
 Just ask "which marketing channels are producing the highest return on investment in the last 6 months?" and see data grounded in your telemetry.
 
+
+https://github.com/user-attachments/assets/8d091a49-23c7-43c0-9c27-9c15ff39ab1b
+
+
 > 💡 **Architectural Pragmatism: Why Postgres for a "Lakehouse"?**
 > 
 > In a production enterprise environment, this engine would sit on top of a true distributed cloud data lakehouse (e.g., AWS S3/Iceberg + Snowflake, Databricks, or BigQuery). 
