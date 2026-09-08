@@ -43,7 +43,7 @@ async def terminal_event_loop() -> None:
             # Wrap the entire iteration loop step inside a global exception envelope
             try:
                 # Thread-delegated non-blocking terminal read yielding event loop control
-                raw_input = await asyncio.to_thread(input, "\nAsk FinOps AI > ")
+                raw_input = await asyncio.to_thread(input, "\nAsk Esable > ")
                 user_input = raw_input.strip()
                 
                 # Check for explicit termination triggers
