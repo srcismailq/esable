@@ -128,7 +128,7 @@ GROQ_API_KEY="gsk_your_validated_groq_cloud_key"
 
 # Semantic Layer Target (Docker Internal Network or Localhost)
 CUBE_API_URL="http://localhost:4000/cubejs-api/v1/load"
-CUBEJS_API_SECRET="cube_secure_token_abc123"
+CUBEJS_API_SECRET="cube_secure_token_abc123_development"
 ```
 
 ### 2. Boot the Infrastructure
@@ -142,7 +142,7 @@ docker compose up
 Open a second terminal window, navigate to the client engine folder, and fire up the interactive conversational workspace:
 ```bash
 cd finops_ai_engine
-python -m client_engine.cli
+uv run -m client_engine.cli
 ```
 
 ## 🛠️ Detailed Installation Runbook (Kubernetes)
@@ -189,17 +189,8 @@ Navigate back to your project root to initialize a unified virtual environment. 
 # Jump up to the project root directory
 cd ..
 
-# Initialize the shared virtual environment at the root level
-python -m venv venv
-
-# Activate the virtual environment
-# On macOS/Linux:
-source venv/bin/activate 
-# On Windows:
-venv\Scripts\activate
-
-# Install all workspace dependencies from the root directory
-pip install -r requirements.txt
+# Sync all workspace dependencies instantly using the project lockfile
+uv sync
 ```
 
 ### 4. Seed the 3-Year Chronological Simulated Lakehouse
@@ -207,7 +198,7 @@ Execute your background pipeline script to truncate the landing tables and injec
 
 ```bash
 cd data_lakehouse/mock_data_generation
-python generate_3_year_data.py
+uv run generate_3_year_data.py
 ```
 
 ### 5. Compile and Execute dbt Analytical Marts
@@ -217,9 +208,9 @@ Since your database credentials map to a local playground environment, your prof
 cd ../analytics_warehouse
 
 # Run dbt using the checked-in local profiles directory layout
-dbt deps
-dbt debug --profiles-dir .
-dbt run --profiles-dir .
+uv run dbt deps
+uv run dbt debug --profiles-dir .
+uv run dbt run --profiles-dir .
 ```
 
 ### 6. Launch the Conversational AI Runtime
