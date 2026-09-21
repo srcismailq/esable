@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from typing import Any, Dict, Optional
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 from groq import AsyncGroq
 import httpx
@@ -46,6 +47,19 @@ async def lifespan(app: FastAPI):
 # --- 3. THE PUBLIC INTERFACE APPLICATION SURFACE ---
 
 server = FastAPI(lifespan=lifespan, title="FinOps AI Engine Gateway")
+
+origins = [
+    "http://localhost:5173",  # Vite's standard local development server port
+    "http://127.0.0.1:5173"   # Loopback variation to capture local browser routing variations
+]
+
+server.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,       # Mandate strict whitelisting for your specific React dev app
+    allow_credentials=True,      # Permits session cookie and authentication headers over cross-origins
+    allow_methods=["POST", "GET"], # Restricts allowed HTTP execution verbs to exactly what our contract demands
+    allow_headers=["*"],         # Allows standard content-type and browser request headers safely
+)
 
 @server.get("/health")
 async def health_check():
