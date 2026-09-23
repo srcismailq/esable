@@ -2,9 +2,12 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from groq import AsyncGroq
 import httpx
+import asyncio
+
 
 # Pulling in the underlying system assets exactly as your CLI does
 from client_engine.config import settings
@@ -14,6 +17,7 @@ from client_engine.graph_engine import app, EngineState
 
 class QueryRequest(BaseModel):
     user_query: str = Field(..., description="The financial or operational query string.")
+    stream: bool = Field(default=False, description="Whether to stream the state diff snapshots incrementally.")
 
     @field_validator("user_query")
     @classmethod
@@ -69,7 +73,7 @@ async def health_check():
 async def config_info():
     return {"llm_model": settings.llm_model}
 
-@server.post("/api/query", response_model=QueryResponse)
+@server.post("/api/query") 
 async def execute_query(payload: QueryRequest):
     # Seed a fresh, isolated state dictionary matching your EngineState contract exactly
     initial_state: EngineState = {
@@ -88,10 +92,63 @@ async def execute_query(payload: QueryRequest):
         }
     }
 
-    # Command the underlying state machine graph to execute the transaction
-    output_state = await app.ainvoke(initial_state, config=config_envelope)
+    # PATH A: Stream state diff snapshots incrementally
+    if payload.stream:
+        async def event_generator():
+            # Accumulate values over time to ensure we are sending a full state snapshot
+            current_state = {
+                "cube_json_query": None,
+                "final_answer": "",
+                "error_message": None
+            }
 
-    # Return the clean, mapped public data contract back over the wire
+            # app.astream yields chunks as the nodes execute
+            async for chunk in app.astream(initial_state, config=config_envelope):
+                
+                if isinstance(chunk, dict):
+                    node_name = next(iter(chunk))
+                    values = chunk[node_name]
+                    
+                    if "cube_json_query" in values and values["cube_json_query"] is not None:
+                        current_state["cube_json_query"] = values["cube_json_query"]
+                    if "error_message" in values and values["error_message"] is not None:
+                        current_state["error_message"] = values["error_message"]
+
+                    if "final_answer" in values and values["final_answer"] is not None:
+                            target_text = values["final_answer"]
+                            
+                            # Split the block text into words and stream them sequentially
+                            words = target_text.split(" ")
+                            for i, word in enumerate(words):
+                                space = " " if i > 0 else ""
+                                current_state["final_answer"] += f"{space}{word}"
+                                
+                                snapshot = QueryResponse(
+                                    cube_json_query=current_state["cube_json_query"],
+                                    final_answer=current_state["final_answer"],
+                                    error_message=current_state["error_message"]
+                                )
+                                yield f"data: {snapshot.model_dump_json()}\n\n"
+                                
+                                # Pause for 30ms before delivering the next word snapshot frame
+                                await asyncio.sleep(0.03)
+                            
+                            # Exit the generator since the final result is fully painted
+                            return
+
+                # Serialize using our explicit QueryResponse data contract structure
+                snapshot = QueryResponse(
+                    cube_json_query=current_state["cube_json_query"],
+                    final_answer=current_state["final_answer"],
+                    error_message=current_state["error_message"]
+                )
+                yield f"data: {snapshot.model_dump_json()}\n\n"
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+    # PATH B: Traditional non-streamed execution (Fallback contract kept identical)
+    output_state = await app.ainvoke(initial_state, config=config_envelope)
+    
     return QueryResponse(
         cube_json_query=output_state.get("cube_json_query"),
         final_answer=output_state.get("final_answer"),

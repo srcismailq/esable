@@ -26,33 +26,45 @@ describe('useQueryEngine Behavioral Contract', () => {
     expect(result.current.userQuery).toBe('Show 2025 spend');
   });
 
-  it('should process a successful query transaction correctly', async () => {
-    // Command the global fetch API to simulate a successful 200 OK server response
-    const fakeResponse = {
-      final_answer: 'Mock Report Content',
-      cube_json_query: { query: {} },
-      error_message: null,
-    };
+  it('should process a successful stream transaction correctly', async () => {
+    const encoder = new TextEncoder();
     
+    // Simulate our state diff snapshots arriving over the network stream
+    const frame1 = { cube_json_query: { query: {} }, final_answer: "", error_message: null };
+    const frame2 = { cube_json_query: { query: {} }, final_answer: "Mock Report Content", error_message: null };
+
+    const chunk1 = encoder.encode(`data: ${JSON.stringify(frame1)}\n\n`);
+    const chunk2 = encoder.encode(`data: ${JSON.stringify(frame2)}\n\n`);
+
+    // Mock the browser's ReadableStream reader loop structure
+    const mockReader = {
+      read: vi.fn()
+        .mockResolvedValueOnce({ value: chunk1, done: false })
+        .mockResolvedValueOnce({ value: chunk2, done: false })
+        .mockResolvedValueOnce({ value: undefined, done: true }),
+    };
+
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => fakeResponse,
-    } as Response);
+      body: {
+        getReader: () => mockReader,
+      },
+    } as unknown as Response);
 
     const { result } = renderHook(() => useQueryEngine());
 
     act(() => {
-      result.current.setUserQuery('Valid Query');
+      result.current.setUserQuery('Valid Streaming Query');
     });
 
-    // Fire the transaction command
     await act(async () => {
       await result.current.submitQuery();
     });
 
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.responsePayload).toEqual(fakeResponse);
+    // Verifies state was updated cleanly with the final complete snapshot data
+    expect(result.current.responsePayload).toEqual(frame2);
     expect(result.current.errorMessage).toBeNull();
   });
 

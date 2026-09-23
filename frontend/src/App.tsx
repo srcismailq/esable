@@ -14,7 +14,7 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: '800px', margin: '40px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
-      <h1>⚡ FinOps Semantic Engine</h1>
+      <h1>⚡ Esable</h1>
       
       {/* 1. Input Command Surface */}
       <QueryForm 
