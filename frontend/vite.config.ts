@@ -9,6 +9,6 @@ export default defineConfig({
     // Exposes global test keywords (describe, it, expect) natively
     globals: true,
     // Explicitly scopes tests to your dedicated top-level folder boundary
-    include: ['tests/**/*.{test,spec}.{ts,tsx}'],
+    include: ['frontend/tests/**/*.{test,spec}.{ts,tsx}'],
   },
 })
