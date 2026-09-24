@@ -8,7 +8,8 @@
     "setup"
   ],
   "scripts": {
-    "dev": "vite frontend",
+    "dev:frontend": "vite frontend",
+    "dev:backend": "npx tsx setup/index.ts",
     "build": "tsc -b frontend && vite build frontend",
     "lint": "eslint frontend",
     "preview": "vite preview frontend",
