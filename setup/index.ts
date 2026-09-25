@@ -1,4 +1,4 @@
-import { createStatusServer } from './infrasetup_server'; 
+import { createStatusServer } from './infrasetup_server.js'; 
 
 const PORT = 8080;
 const server = createStatusServer();

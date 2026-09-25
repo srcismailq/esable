@@ -11,6 +11,7 @@ services:
     ports:
       - "5432:5432"
       - "4000:4000"
+      - "8000:8000"
     volumes:
       # Automatically executes database initialization script on first boot
       - ./data_lakehouse/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -89,3 +90,16 @@ services:
       echo '   uv run -m client_engine.cli' &&
       echo '==================================================\n'
       "
+  finops-api:
+    build:
+      context: .                           # Keeps the root as the baseline
+      dockerfile: finops_ai_engine/Dockerfile # Points to the nested Dockerfile
+    environment:
+      - PYTHONPATH=/app/finops_ai_engine
+    container_name: finops-api
+    network_mode: "service:postgres-lakehouse"
+    env_file:
+      - ./finops_ai_engine/.env
+    depends_on:
+      cube-ready-notifier:
+        condition: service_completed_successfully

@@ -45,6 +45,7 @@ export function createStatusServer(): http.Server {
         }
 
         const currentStep = INFRASTRUCTURE_STEPS[currentStepIndex];
+        if (!currentStep) return;
         const inspectCmd = `docker inspect --format="{{json .State}}" ${currentStep.service}`;
 
         // Using standard non-blocking callback pattern eliminates promisify mock mismatches
