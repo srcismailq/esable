@@ -89,8 +89,9 @@ async def synthesize_cube_response(
 
     # --- STEP D: REUSE CLIENT POOL WITH COMPILATION BOUNDS ---
     logger.info("Routing raw database facts to Groq Cloud for conversational summary synthesis...")
-    
-    response = await client.chat.completions.create(
+    from langchain_core.callbacks import dispatch_custom_event
+
+    response_stream = await client.chat.completions.create(
         messages=[
             {"role": "system", "content": SYNTHESIS_PROMPT},
             {
@@ -103,11 +104,19 @@ async def synthesize_cube_response(
             }
         ],
         model=settings.llm_model,
-        # FIX: Hardcode temperature strictly to 0.0 to guarantee deterministic analytical descriptions
-        temperature=0.0
+        temperature=0.0,
+        stream=True
     )
 
-    final_narrative_output = response.choices[0].message.content
+    accumulated_chunks = []
+    async for chunk in response_stream:
+        if hasattr(chunk, "choices") and chunk.choices:
+            choice = chunk.choices[0]
+            if hasattr(choice, "delta") and choice.delta.content:
+                accumulated_chunks.append(choice.delta.content)
+
+    final_narrative_output = "".join(accumulated_chunks)
+    
     if not final_narrative_output:
         raise ValueError("Groq returned an empty text string during response synthesis.")
 
