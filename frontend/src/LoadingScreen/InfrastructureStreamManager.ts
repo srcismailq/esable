@@ -41,8 +41,8 @@ export class InfrastructureStreamManager {
     this.createEventSource = createEventSource;
   }
 
-  public getState(): StreamState {
-    return { ...this.state };
+   public getState(): StreamState {
+    return this.state;
   }
 
   public subscribe(listener: Listener): () => void {
@@ -115,7 +115,6 @@ export class InfrastructureStreamManager {
   }
 
   private notify(): void {
-    const activeSnapshot = this.getState();
-    this.listeners.forEach((listener) => listener(activeSnapshot));
+    this.listeners.forEach((listener) => listener(this.state));
   }
 }

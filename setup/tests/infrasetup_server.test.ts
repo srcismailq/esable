@@ -20,8 +20,10 @@ describe('State-Driven Infrastructure Server Behaviours', () => {
   let serverInstance: http.Server;
   const TEST_PORT = 3005;
   const BASE_URL = `http://127.0.0.1:${TEST_PORT}/status`;
-
+  let exitSpy: any;
   beforeAll(async () => {
+
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
     serverInstance = createStatusServer();
     await new Promise<void>((resolve) => {
       serverInstance.listen(TEST_PORT, '127.0.0.1', () => resolve());
@@ -29,6 +31,7 @@ describe('State-Driven Infrastructure Server Behaviours', () => {
   });
 
   afterAll(async () => {
+    exitSpy.mockRestore(); // Restore original process.exit functionality
     vi.restoreAllMocks();
     await new Promise<void>((resolve) => {
       serverInstance.close(() => resolve());
@@ -124,22 +127,38 @@ describe('State-Driven Infrastructure Server Behaviours', () => {
     expect(absoluteLastProgress).toBe(100);
   });
 
-  it('Behaviour 4: Should immediately invoke "docker compose down" if the frontend disconnects prematurely', async () => {
+  it('Behaviour 4: Should NOT invoke "docker compose down" if the frontend disconnects prematurely', async () => {
     const response = await fetch(BASE_URL);
     const reader = response.body!.getReader();
     
+    // Simulate frontend refresh or disconnection
     await reader.read();
     await reader.cancel();
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    expect(exec).toHaveBeenCalledWith(
+    // Assert that it was NEVER called during client disconnects
+    expect(exec).not.toHaveBeenCalledWith(
       expect.stringContaining('docker compose down'),
-      expect.any(Object)
+      expect.any(Function)
     );
   });
 
-  it('Behaviour 5: Should forcefully clear the polling interval when a service returns a fatal crash exit code', async () => {
+    it('Behaviour 5:Should invoke "docker compose down" when the process receives a shutdown signal', async () => {
+      // Emit the shutdown signal to the running process
+      process.emit('SIGTERM');
+
+      // Small delay to let the async exec call fire
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Assert that it successfully triggered the cleanup
+      expect(exec).toHaveBeenCalledWith(
+        expect.stringContaining('docker compose down'),
+        expect.any(Function)
+      );
+    });
+
+  it('Behaviour 6: Should forcefully clear the polling interval when a service returns a fatal crash exit code', async () => {
     let checkPollCount = 0;
 
     vi.mocked(exec).mockImplementation(((cmd: string, options: any, callback: any) => {

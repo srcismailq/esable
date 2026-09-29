@@ -1,27 +1,18 @@
-import { useState, useEffect } from 'react';
-import { InfrastructureStreamManager, type StreamState } from '../InfrastructureStreamManager.js';
+import { useSyncExternalStore } from 'react';
+import { globalInfraManager } from '../services/InfraService.js';
+import type { StreamState } from '../InfrastructureStreamManager.js';
 
-export function useInfrastructureStatus(url: string): StreamState {
-  // Initialize state directly from the manager's default snapshot
-  const [state, setState] = useState<StreamState>(() => {
-    return new InfrastructureStreamManager(url).getState();
-  });
-
-  useEffect(() => {
-    const manager = new InfrastructureStreamManager(url);
-
-    // Subscribe to state updates and map them to our React setter
-    const unsubscribe = manager.subscribe(setState);
+/**
+ * Custom React hook providing strict TypeScript tracking of the backend infrastructure stream.
+ * Synchronizes external class snapshots instantly with the React rendering loops.
+ */
+export function useInfrastructureStatus(): StreamState {
+  return useSyncExternalStore<StreamState>(
+    // 1. Tell React how to subscribe to updates. 
+    // We pass a bound reference to keep 'this' pointer context inside your class.
+    (callback) => globalInfraManager.subscribe(callback),
     
-    // Kick off the SSE stream connection
-    manager.connect();
-
-    // Clean up completely when the component unmounts
-    return () => {
-      unsubscribe();
-      manager.disconnect();
-    };
-  }, [url]);
-
-  return state;
+    // 2. Tell React how to fetch the latest immutable state snapshot.
+    () => globalInfraManager.getState()
+  );
 }

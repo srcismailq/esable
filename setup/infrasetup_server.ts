@@ -7,6 +7,15 @@ const INFRASTRUCTURE_STEPS = [
   { service: 'cube-ready-notifier', target: 'exited', phase: 'complete', progress: 100, status: 'Ready' }
 ] as const;
 
+const shutdown = () => {
+  exec('docker compose down', () => {
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+
 export function createStatusServer(): http.Server {
   return http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
@@ -27,7 +36,8 @@ export function createStatusServer(): http.Server {
 
       res.write(`data: ${JSON.stringify({ phase: 'infrastructure', progress: 5, status: 'Spawning target framework configurations...' })}\n\n`);
 
-      exec('docker compose up -d', { stdio: 'ignore' } as any);
+      // Fixed: Removed invalid stdio object from exec
+      exec('docker compose up -d');
 
       let currentStepIndex = 0;
       let isAborted = false;
@@ -48,13 +58,12 @@ export function createStatusServer(): http.Server {
         if (!currentStep) return;
         const inspectCmd = `docker inspect --format="{{json .State}}" ${currentStep.service}`;
 
-        // Using standard non-blocking callback pattern eliminates promisify mock mismatches
         exec(inspectCmd, (error, stdout) => {
           if (isAborted) return;
 
           try {
             const cleanStdout = (stdout || '').toString().trim();
-            if (!cleanStdout) return; // Wait for the next tick if the frame is empty
+            if (!cleanStdout) return;
 
             const state = JSON.parse(cleanStdout);
 
@@ -62,11 +71,14 @@ export function createStatusServer(): http.Server {
             const healthCheckFailed = state.Health?.Status === 'unhealthy';
 
             if (hasCrashed || healthCheckFailed) {
+              isAborted = true; // Set flag early to abort subsequent calls
               clearInterval(monitorInterval);
+              
+              // Fixed: Fixed string backticks interpolation syntax error
               res.write(`data: ${JSON.stringify({
                 phase: 'error',
                 progress: currentStep.progress,
-                status: `Critical Failure: Component \${currentStep.service} failed runtime checks.`
+                status: `Critical Failure: Component ${currentStep.service} failed runtime checks.`
               })}\n\n`);
               res.end();
               return;
@@ -95,11 +107,8 @@ export function createStatusServer(): http.Server {
       }, 500);
 
       req.on('close', () => {
-        if (currentStepIndex < INFRASTRUCTURE_STEPS.length) {
-          isAborted = true;
-          clearInterval(monitorInterval);
-          exec('docker compose down', { stdio: 'ignore' } as any);
-        }
+        isAborted = true;
+        clearInterval(monitorInterval);
         res.end();
       });
       return;

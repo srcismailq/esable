@@ -14,7 +14,7 @@ export default function App() {
     submitQuery,
   } = useQueryEngine();
 
-  const infraStatus = useInfrastructureStatus('http://localhost:8080/status');
+  const infraStatus = useInfrastructureStatus();
   if (!infraStatus.isReady) {
     return <LoadingScreen statusSnapshot={infraStatus} />;
   }
