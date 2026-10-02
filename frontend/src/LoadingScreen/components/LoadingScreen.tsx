@@ -1,4 +1,6 @@
+import { Canvas } from '@react-three/fiber';
 import { type StreamState } from '../InfrastructureStreamManager';
+import Scene from './LoadingAnimationScene';
 
 interface LoadingScreenProps {
   statusSnapshot: StreamState;
@@ -23,8 +25,22 @@ export default function LoadingScreen({ statusSnapshot }: LoadingScreenProps) {
   }
 
   return (
+    <>
+      <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100vw',
+      height: '100vh',
+      zIndex: -1, // Places the 3D scene behind the UI
+      pointerEvents: 'none' // Allows mouse clicks to pass through to HTML buttons if needed
+    }}>
+      <Canvas>
+        <Scene statusSnapshot={statusSnapshot} />
+      </Canvas>
+    </div>
     <div style={{ maxWidth: '500px', margin: '100px auto', padding: '0 20px', fontFamily: 'sans-serif', textAlign: 'center' }}>
-      <h2 style={{ color: '#2d3748' }}>⚡ Initializing Esable Core</h2>
+      <h2 style={{ color: '#c7d6ef' }}>⚡ Initializing Esable Core</h2>
       <p style={{ color: '#718096', fontSize: '14px', minHeight: '20px' }}>{statusText || 'Establishing backend pipeline...'}</p>
       
       {/* Outer Progress Container */}
@@ -41,5 +57,7 @@ export default function LoadingScreen({ statusSnapshot }: LoadingScreenProps) {
       
       <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#4a5568' }}>{progress}% Complete</span>
     </div>
+    </>
+    
   );
 }
