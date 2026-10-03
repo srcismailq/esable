@@ -15,3 +15,9 @@
 .git/
 .gitignore
 .vscode/
+
+data_lakehouse/
+node_modules/
+frontend/
+archivd/
+.pytest_cache/
