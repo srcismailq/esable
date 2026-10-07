@@ -1,8 +1,10 @@
+// App.tsx
 import { useQueryEngine } from './QueryForm/hooks/useQueryEngine';
 import QueryForm from './QueryForm/components/QueryForm';
 import AnalystReport from './QueryForm/components/AnalystReport';
 import { useInfrastructureStatus } from './LoadingScreen/hook/useInfrastructureStatus';
 import LoadingScreen from './LoadingScreen/components/LoadingScreen';
+import { useLoadingLifecycle } from './LoadingScreen/hook/useLoadingLifecycle';
 
 export default function App() {
   const {
@@ -15,23 +17,29 @@ export default function App() {
   } = useQueryEngine();
 
   const infraStatus = useInfrastructureStatus();
-  if (!infraStatus.isReady) {
-    return <LoadingScreen statusSnapshot={infraStatus} />;
+  
+  // Extract our stable status snapshot descriptor
+  const { isAppReady, isExiting, stableStatusSnapshot, onScreenMasked } = useLoadingLifecycle(infraStatus);
+
+  if (!isAppReady) {
+    return (
+      <LoadingScreen 
+        statusSnapshot={stableStatusSnapshot} // <-- Pure cached data stream baseline
+        isExiting={isExiting} 
+        onTransitionComplete={onScreenMasked} 
+      />
+    );
   }
 
   return (
     <div style={{ maxWidth: '800px', margin: '40px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
       <h1>⚡ Esable</h1>
-      
-      {/* 1. Input Command Surface */}
       <QueryForm 
         userQuery={userQuery} 
         isLoading={isLoading} 
         setUserQuery={setUserQuery} 
         onSubmit={submitQuery} 
       />
-
-      {/* 2. Visual Output Panel */}
       <AnalystReport 
         responsePayload={responsePayload} 
         errorMessage={errorMessage} 
