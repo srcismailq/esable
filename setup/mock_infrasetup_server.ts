@@ -5,7 +5,7 @@ const FRONTEND_ORIGIN = 'http://localhost:5173';
 
 // Adjust this interval to change your debugging velocity!
 // 1000ms means it advances progress stages every 1 second.
-const MOCK_STEP_INTERVAL_MS = 2000;
+const MOCK_STEP_INTERVAL_MS = 3000;
 
 export interface StreamState {
   status: 'idle' | 'loading' | 'ready' | 'error';
