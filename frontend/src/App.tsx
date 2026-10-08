@@ -1,4 +1,7 @@
-// App.tsx
+// src/App.tsx
+import { Canvas } from '@react-three/fiber';
+import BackgroundScene from './Background/components/BackgroundScene';
+
 import { useQueryEngine } from './QueryForm/hooks/useQueryEngine';
 import QueryForm from './QueryForm/components/QueryForm';
 import AnalystReport from './QueryForm/components/AnalystReport';
@@ -17,59 +20,77 @@ export default function App() {
   } = useQueryEngine();
 
   const infraStatus = useInfrastructureStatus();
-  
-  // Extract our stable status snapshot descriptor
   const { isAppReady, isExiting, stableStatusSnapshot, onScreenMasked } = useLoadingLifecycle(infraStatus);
 
-  if (!isAppReady) {
-    return (
-      <LoadingScreen 
-        statusSnapshot={stableStatusSnapshot} // <-- Pure cached data stream baseline
-        isExiting={isExiting} 
-        onTransitionComplete={onScreenMasked} 
-      />
-    );
-  }
-
-  
   return (
-    <div style={{ 
-      backgroundColor: '#0D1026', 
-      color: '#FFFFFF', 
-      minHeight: '100vh', 
-      width: '100%' 
-    }}>
+    <>
       <style>{`
-        body { 
+        html, body { 
           margin: 0; 
           padding: 0; 
           background-color: #0D1026; 
+          width: 100%;
+          height: 100%;
+          overflow-x: hidden;
         }
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
-      <div style={{ 
-        maxWidth: '800px', 
-        margin: '0 auto', 
-        padding: '40px 20px', 
-        fontFamily: 'sans-serif',
-        // Applies a smooth 0.5-second fade and a slight upward slide
-        animation: 'fadeIn 0.5s ease-out forwards' 
-      }}>
-        <h1>⚡ Esable</h1>
-        <QueryForm 
-          userQuery={userQuery} 
-          isLoading={isLoading} 
-          setUserQuery={setUserQuery} 
-          onSubmit={submitQuery} 
-        />
-        <AnalystReport 
-          responsePayload={responsePayload} 
-          errorMessage={errorMessage} 
-        />
+
+      {/* GLOBAL 3D BACKDROP CONTEXT LAYER */}
+      <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0, pointerEvents: 'none' }}>
+        <Canvas>
+          <BackgroundScene 
+            statusSnapshot={stableStatusSnapshot} 
+            isExiting={isExiting} 
+            onScreenMasked={onScreenMasked} 
+            isAppReady={isAppReady}
+            isProcessing={isLoading} // Semantically maps the text-engine fetch states
+          />
+        </Canvas>
       </div>
-    </div>
+
+      {/* HTML USER INTERFACE OVERLAY LAYER */}
+      <div style={{ 
+        position: 'relative', 
+        zIndex: 1, 
+        color: '#FFFFFF', 
+        minHeight: '100vh', 
+        width: '100%' 
+      }}>
+        
+        {!isAppReady && (
+          <LoadingScreen 
+            statusSnapshot={stableStatusSnapshot} 
+            isExiting={isExiting} 
+            onTransitionComplete={onScreenMasked} 
+          />
+        )}
+
+        {isAppReady && (
+          <div style={{ 
+            maxWidth: '800px', 
+            margin: '0 auto', 
+            padding: '40px 20px', 
+            fontFamily: 'sans-serif',
+            animation: 'fadeIn 0.5s ease-out forwards' 
+          }}>
+            <h1>⚡ Esable</h1>
+            <QueryForm 
+              userQuery={userQuery} 
+              isLoading={isLoading} 
+              setUserQuery={setUserQuery} 
+              onSubmit={submitQuery} 
+            />
+            <AnalystReport 
+              responsePayload={responsePayload} 
+              errorMessage={errorMessage} 
+            />
+          </div>
+        )}
+      </div>
+    </>
   );
 }
