@@ -9,7 +9,7 @@ interface DashboardVisualsProps {
 
 export default function DashboardVisuals({ centerCubeRef, cubeColor }: DashboardVisualsProps) {
   return (
-    <mesh ref={centerCubeRef} position={[0, 0, -400]}>
+    <mesh ref={centerCubeRef} position={[0, 0, -400]}  scale={[0, 0, 0]}>
       <boxGeometry args={[1, 1, 1]} />
       <meshBasicMaterial color={cubeColor} />
     </mesh>

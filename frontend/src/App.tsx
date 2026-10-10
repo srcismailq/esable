@@ -1,7 +1,6 @@
 // src/App.tsx
 import { Canvas } from '@react-three/fiber';
-import BackgroundScene from './Background/components/BackgroundScene';
-
+import BackgroundCanvasManager from './Background/components/BackgroundCanvasManager';
 import { useQueryEngine } from './QueryForm/hooks/useQueryEngine';
 import QueryForm from './QueryForm/components/QueryForm';
 import AnalystReport from './QueryForm/components/AnalystReport';
@@ -21,6 +20,7 @@ export default function App() {
 
   const infraStatus = useInfrastructureStatus();
   const { isAppReady, isExiting, stableStatusSnapshot, onScreenMasked } = useLoadingLifecycle(infraStatus);
+  const currentVisualPhase = isAppReady ? 'done' : (isExiting ? 'animating' : 'streaming');
 
   return (
     <>
@@ -39,15 +39,13 @@ export default function App() {
         }
       `}</style>
 
-      {/* GLOBAL 3D BACKDROP CONTEXT LAYER */}
       <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0, pointerEvents: 'none' }}>
         <Canvas>
-          <BackgroundScene 
-            statusSnapshot={stableStatusSnapshot} 
-            isExiting={isExiting} 
+          <BackgroundCanvasManager 
+            visualPhase={currentVisualPhase} // 🎯 PASS THE TRUE UI PHASE PRIMITIVE DIRECTLY
+            statusSnapshot={stableStatusSnapshot} // Kept for raw numeric progress tracking
+            isProcessing={isLoading} 
             onScreenMasked={onScreenMasked} 
-            isAppReady={isAppReady}
-            isProcessing={isLoading} // Semantically maps the text-engine fetch states
           />
         </Canvas>
       </div>

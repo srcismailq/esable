@@ -21,6 +21,7 @@ export default function InfraLoaderVisuals({ nodes, materials, cubeRef, helixRef
         castShadow
         receiveShadow
         position={[612, -49.51, 44.22]}
+        scale={[0, 0, 0]} 
       />
       <mesh
         ref={cubeRef}
@@ -30,6 +31,7 @@ export default function InfraLoaderVisuals({ nodes, materials, cubeRef, helixRef
         castShadow
         receiveShadow
         position={[-673.21, -71.16, 52.99]}
+        scale={[0, 0, 0]} 
       />
       <mesh
         ref={helixRef}
@@ -39,6 +41,7 @@ export default function InfraLoaderVisuals({ nodes, materials, cubeRef, helixRef
         castShadow
         receiveShadow
         position={[-4.52, -64.09, 70.68]}
+        scale={[0, 0, 0]} 
       />
     </>
   );
