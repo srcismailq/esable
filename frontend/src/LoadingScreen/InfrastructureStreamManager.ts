@@ -1,13 +1,5 @@
-export interface StreamState {
-  status: 'idle' | 'loading' | 'ready' | 'error';
-  phase: string;
-  progress: number;
-  statusText: string;
-  error: string | null;
-  isReady: boolean;
-}
-
-export type Listener = (state: StreamState) => void;
+// src/LoadingScreen/InfrastructureStreamManager.ts
+import { useAppOrchestrator } from '../store/useAppOrchestrator';
 
 interface MinimalEventSource {
   onmessage?: (ev: { data: string }) => void;
@@ -21,100 +13,79 @@ export class InfrastructureStreamManager {
   private url: string;
   private createEventSource: EventSourceFactory;
   private client: MinimalEventSource | null = null;
-  private listeners: Set<Listener> = new Set();
-  
-  private state: StreamState = {
-    status: 'idle',
-    phase: 'infrastructure',
-    progress: 0,
-    statusText: '',
-    error: null,
-    isReady: false,
-  };
+  // 🎯 NETWORK COUNTER: Tracks total frames received during this live session
+  private packetCount: number = 0;
 
   constructor(
     url: string,
-    // Dependency injection handles the raw browser object fallback seamlessly
     createEventSource: EventSourceFactory = (targetUrl) => new EventSource(targetUrl) as any
   ) {
     this.url = url;
     this.createEventSource = createEventSource;
   }
 
-   public getState(): StreamState {
-    return this.state;
-  }
-
-  public subscribe(listener: Listener): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-
-  public connect(): void {
+    public connect(): void {
     if (this.client) return;
 
+    this.packetCount = 0; 
     this.client = this.createEventSource(this.url);
 
     this.client.onmessage = (event) => {
       try {
-        const payload = JSON.parse(event.data);
+        // 🎯 DISK LOG INJECTION: Paste this block right here at the top of the try loop!
+        try {
+          const payload = JSON.parse(event.data);
+          const prog = payload.progress ?? 0;
+          const statusStr = payload.status ?? '';
+          
+          const rawLog = localStorage.getItem('__esable_network_trace') || '[]';
+          const history = JSON.parse(rawLog);
+          
+          history.push({
+            timestamp: Date.now(),
+            progress: prog,
+            status: statusStr
+          });
+          
+          localStorage.setItem('__esable_network_trace', JSON.stringify(history));
+        } catch (e) {
+          // silently catch JSON parse exceptions
+        }
+
+        // --- Rest of your original code continues below completely untouched ---
+        this.packetCount++; 
         
-        // Defensive default protection to prevent React text nodes from choking on undefined properties
+        const payload = JSON.parse(event.data);
         const phase = payload.phase ?? 'infrastructure';
         const progress = typeof payload.progress === 'number' ? payload.progress : 0;
         const statusText = payload.status ?? '';
 
         if (phase === 'error') {
-          this.updateState({
-            status: 'error',
-            phase,
-            progress,
-            statusText,
-            error: statusText || 'An explicit backend error occurred.',
-          });
           this.disconnect();
           return;
         }
 
-        const isReady = progress === 100 || phase === 'complete';
-        
-        this.updateState({
-          status: isReady ? 'ready' : 'loading',
-          phase,
-          progress,
-          statusText,
-          isReady,
-        });
+        useAppOrchestrator.getState().loadingView.updateStream(progress, statusText);
 
-        if (isReady) {
+        const isFinished = progress === 100 || phase === 'complete';
+        
+        if (isFinished && this.packetCount > 1) {
           this.disconnect();
         }
       } catch (err) {
-        // Quietly absorb malformed frames without resetting the previous healthy baseline snapshots
+        // absorb malformed frames cleanly
       }
     };
 
     this.client.onerror = () => {
-      this.updateState({
-        status: 'error',
-        error: 'Connection lost with backend infrastructure stream.',
-      });
       this.disconnect();
     };
   }
+
 
   public disconnect(): void {
     if (!this.client) return;
     this.client.close();
     this.client = null;
-  }
-
-  private updateState(partialState: Partial<StreamState>): void {
-    this.state = { ...this.state, ...partialState };
-    this.notify();
-  }
-
-  private notify(): void {
-    this.listeners.forEach((listener) => listener(this.state));
   }
 }

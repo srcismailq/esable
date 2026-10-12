@@ -1,190 +1,172 @@
-// src/Background/components/BackgroundCanvasManager.tsx
 import { useRef, useEffect } from 'react';
 import useSpline from '@splinetool/r3f-spline';
 import { useControls } from 'leva';
 import { type Mesh, Color } from 'three';
-import { useGSAP } from '@gsap/react';
-import { type StreamState } from '../../LoadingScreen/InfrastructureStreamManager';
+import { useFrame } from '@react-three/fiber';
+import { useAppOrchestrator } from '../../store/useAppOrchestrator';
 import { ANIMATION_CONFIG } from '../config/animationConfig';
+import { BackgroundAnimationEngine } from '../services/BackgroundAnimationEngine';
 import BackgroundSceneView from './BackgroundSceneView';
 import gsap from 'gsap';
 
-interface BackgroundCanvasManagerProps {
-  visualPhase: 'streaming' | 'animating' | 'done';
-  statusSnapshot: StreamState;
-  isProcessing: boolean;
-  onScreenMasked: () => void;
-}
-
-export default function BackgroundCanvasManager({
-  visualPhase,
-  statusSnapshot,
-  isProcessing,
-  onScreenMasked,
-}: BackgroundCanvasManagerProps) {
+export default function BackgroundCanvasManager() {
   const { nodes, materials } = useSpline('https://prod.spline.design/sghG1VPRzVqp3B0U/scene.splinecode');
 
+  // View Element References
   const loaderCubeRef = useRef<Mesh>(null);
   const loaderHelixRef = useRef<Mesh>(null);
   const loaderTorusRef = useRef<Mesh>(null);
   const centerCubeRef = useRef<Mesh>(null);
 
+  // Leva Visual Control Inputs
   const { cubeColor } = useControls('Exit Control Timeline', {
     cubeColor: { value: '#ed8529', label: 'Cube Color' },
   });
 
-  const trackingRef = useRef({
-    cubeSpawned: false,
-    helixSpawned: false,
-    torusSpawned: false,
-    exitTriggered: false,
-    dashboardActivated: false,
-  });
-  
-  const ambientTumbleTween = useRef<gsap.core.Tween | null>(null);
+  // 🎯 THE ENGINE HANDLER INSTANCE: The isolated state calculations core
+  const engine = useRef(new BackgroundAnimationEngine());
 
-  // Clean mount/unmount memory flags supervisor loop
+  // Mutable Animation Handles (Stored cleanly outside React lifecycle states)
+  const ambientTumbleTween = useRef<gsap.core.Tween | null>(null);
+  const exitTimelineRef = useRef<gsap.core.Timeline | null>(null);
+
+  // Clean layout cleanup routine on unmount
   useEffect(() => {
-    trackingRef.current = {
-      cubeSpawned: false,
-      helixSpawned: false,
-      torusSpawned: false,
-      exitTriggered: false,
-      dashboardActivated: false,
-    };
     return () => {
-      if (ambientTumbleTween.current) {
-        ambientTumbleTween.current.kill();
-        ambientTumbleTween.current = null;
-      }
-      gsap.killTweensOf([
-        loaderCubeRef.current?.scale,
-        loaderHelixRef.current?.scale,
-        loaderTorusRef.current?.scale,
-        centerCubeRef.current?.scale,
-        centerCubeRef.current?.rotation
-      ].filter(Boolean));
+      if (ambientTumbleTween.current) ambientTumbleTween.current.kill();
+      if (exitTimelineRef.current) exitTimelineRef.current.kill();
     };
   }, []);
 
-  // Isolated progress milestone supervisor hook
+  // Synchronous Reactivity Layer: Binds changes back to mutable properties smoothly
   useEffect(() => {
-    if (visualPhase !== 'streaming') return;
+    if (centerCubeRef.current) {
+      const material = centerCubeRef.current.material as any;
+      if (material && material.color) {
+        material.color.copy(new Color(cubeColor));
+      }
+    }
+  }, [cubeColor]);
 
-    const progress = statusSnapshot?.progress ?? 0;
-    const { MILESTONES, SCALES } = ANIMATION_CONFIG;
+  useFrame((state, delta) => {
+    const storeState = useAppOrchestrator.getState();
+    const { progress } = storeState.loadingView;
+    const { isQueryActive, setInterfaceVisible } = storeState.dashboardView;
+    
+    const mesh = centerCubeRef.current;
+    if (!mesh) return;
 
-    if (progress >= MILESTONES.CUBE && !trackingRef.current.cubeSpawned && loaderCubeRef.current) {
-      trackingRef.current.cubeSpawned = true;
+    const { SCALES, DURATIONS, COLORS } = ANIMATION_CONFIG;
+
+    // Evaluate live element boundaries to detect cache hits / immediate bypasses
+    const loadersVisible = !!(loaderCubeRef.current && loaderCubeRef.current.scale.x > 0);
+
+    // 1. ACT: Feed primitive parameters into our verified contract engine
+    const commands = engine.current.update({
+      delta,
+      progress,
+      isQueryActive,
+      loadersWereVisible: loadersVisible,
+    });
+
+    // 2. ASSERT & EXECUTE: Map mathematical signals to physical animations blindly
+
+    // --- Milestone Reveals ---
+    if (commands.triggerLoaderReveal === 'cube' && loaderCubeRef.current) {
       gsap.to(loaderCubeRef.current.scale, { x: SCALES.LOADER_MAX, y: SCALES.LOADER_MAX, z: SCALES.LOADER_MAX, duration: 0.5, ease: 'back.out(1.7)' });
       gsap.to(loaderCubeRef.current.rotation, { x: '+=6.28', y: '+=6.28', duration: 8, repeat: -1, ease: 'none' });
     }
-
-    if (progress >= MILESTONES.HELIX && !trackingRef.current.helixSpawned && loaderHelixRef.current) {
-      trackingRef.current.helixSpawned = true;
+    if (commands.triggerLoaderReveal === 'helix' && loaderHelixRef.current) {
       gsap.to(loaderHelixRef.current.scale, { x: SCALES.LOADER_MAX, y: SCALES.LOADER_MAX, z: SCALES.LOADER_MAX, duration: 0.5, ease: 'back.out(1.7)' });
       gsap.to(loaderHelixRef.current.rotation, { y: '-=6.28', duration: 5, repeat: -1, ease: 'none' });
     }
-
-    if (progress >= MILESTONES.TORUS && !trackingRef.current.torusSpawned && loaderTorusRef.current) {
-      trackingRef.current.torusSpawned = true;
+    if (commands.triggerLoaderReveal === 'torus' && loaderTorusRef.current) {
       gsap.to(loaderTorusRef.current.scale, { x: SCALES.LOADER_MAX, y: SCALES.LOADER_MAX, z: SCALES.LOADER_MAX, duration: 0.5, ease: 'back.out(1.7)' });
       gsap.to(loaderTorusRef.current.rotation, { x: '+=6.28', z: '+=6.28', duration: 6, repeat: -1, ease: 'none' });
     }
-  }, [statusSnapshot?.progress, visualPhase]);
 
-  // Stable engine lifecycle supervisor hook
-  useGSAP(() => {
-    const { SCALES, DURATIONS, COLORS } = ANIMATION_CONFIG;
-
-    // --- PHASE 2: ANIMATING (1.2s Exit Bridge) ---
-    if (visualPhase === 'animating' && !trackingRef.current.exitTriggered && centerCubeRef.current) {
-      trackingRef.current.exitTriggered = true;
-
+    // --- Structural Exit Explosions ---
+    if (commands.triggerExitBurst) {
       if (loaderCubeRef.current) gsap.killTweensOf(loaderCubeRef.current.rotation);
       if (loaderHelixRef.current) gsap.killTweensOf(loaderHelixRef.current.rotation);
       if (loaderTorusRef.current) gsap.killTweensOf(loaderTorusRef.current.rotation);
 
       const targets = [loaderCubeRef.current?.scale, loaderHelixRef.current?.scale, loaderTorusRef.current?.scale].filter(Boolean);
 
-      const exitTimeline = gsap.timeline({
-        delay: 0.05, 
+      exitTimelineRef.current = gsap.timeline({
+        delay: 0.05,
         onComplete: () => {
-          onScreenMasked();
+          // Fire handoff explicitly back to the engine once visual linear burst maps finish
+          engine.current.notifyExitBurstComplete();
+          exitTimelineRef.current = null;
         }
       });
 
-      exitTimeline
+      exitTimelineRef.current
         .to(targets, { x: 0, y: 0, z: 0, duration: 0.4, ease: 'power2.in' }, 0)
-        .to(centerCubeRef.current.scale, { x: SCALES.CENTER_CUBE_BASELINE, y: SCALES.CENTER_CUBE_BASELINE, z: SCALES.CENTER_CUBE_BASELINE, duration: DURATIONS.EXIT_BRIDGE, ease: 'power3.out' }, 0)
-        // 🎯 MOMENTUM BUFFER: Increase rotation distance and use a perfectly smooth linear tracking curve
-        // This keeps the cube spinning fluidly, masking the brief single-frame DOM mount lag
-        .to(centerCubeRef.current.rotation, { 
-          x: '+=6.28', 
-          y: '+=9.42', 
-          duration: DURATIONS.EXIT_BRIDGE, 
-          ease: 'linear' 
-        }, 0);
+        .to(mesh.scale, { x: SCALES.CENTER_CUBE_BASELINE, y: SCALES.CENTER_CUBE_BASELINE, z: SCALES.CENTER_CUBE_BASELINE, duration: DURATIONS.EXIT_BRIDGE, ease: 'power3.out' }, 0)
+        .to(mesh.rotation, { x: '+=6.28', y: '+=9.42', duration: DURATIONS.EXIT_BRIDGE, ease: 'linear' }, 0);
 
-      const material = centerCubeRef.current.material as any;
+      const material = mesh.material as any;
       if (material && material.color) {
         const targetColor = new Color(COLORS.TARGET_BACKGROUND);
-        exitTimeline.to(material.color, { r: targetColor.r, g: targetColor.g, b: targetColor.b, duration: DURATIONS.EXIT_BRIDGE, ease: 'power2.out' }, 0);
+        exitTimelineRef.current.to(material.color, { r: targetColor.r, g: targetColor.g, b: targetColor.b, duration: DURATIONS.EXIT_BRIDGE, ease: 'power2.out' }, 0);
       }
     }
 
-    // --- PHASE 3: DONE (Dashboard Atmosphere Loops) ---
-    if (visualPhase === 'done' && centerCubeRef.current) {
-      if (!trackingRef.current.dashboardActivated) {
-        trackingRef.current.dashboardActivated = true;
+    // --- Isolated Loops Spin Setup ---
+    if (commands.triggerFastSpinLoopInit) {
+      const material = mesh.material as any;
+      if (material && material.color) material.color.copy(new Color(cubeColor));
 
-        const material = centerCubeRef.current.material as any;
-        if (material && material.color) {
-          material.color.copy(new Color(cubeColor));
-        }
+      ambientTumbleTween.current = gsap.to(mesh.rotation, {
+        x: '+=6.28', y: '+=6.28', duration: 6, repeat: -1, ease: 'none'
+      });
+      gsap.set(ambientTumbleTween.current, { timeScale: 5.0 });
+    }
 
-        // 1. Initialize the baseline slow ambient loop relatively
-        ambientTumbleTween.current = gsap.to(centerCubeRef.current.rotation, {
-          x: '+=6.28',
-          y: '+=6.28',
-          duration: 12,
-          repeat: -1,
-          ease: 'none'
-        });
-
-        // 🎯 THE PERFECT MATHEMATICAL HANDOFF DETECTED:
-        // Force the loop timescale to match the exit velocity (15.0) on frame zero,
-        // then smoothly stretch the decay window out to 2.2 seconds for a premium wind-down.
-        (trackingRef.current as any).isLandingDecelerating = true;
-
-        gsap.set(ambientTumbleTween.current, { timeScale: 15.0 }); // 🎯 MATCHES EXIT VELOCITY EXACTLY
+    // --- Interactive Speeds / Timescale Shifting ---
+    if (commands.setInteractiveTimescale !== null) {
+      // Direct asset mutation without forcing React to run costly UI re-renders!
+      if (ambientTumbleTween.current) {
         gsap.to(ambientTumbleTween.current, {
-          timeScale: 1.0,
-          duration: 2.2, // 🎯 Cushion the deceleration curve
-          ease: 'power3.out', // Deep cushion curve to drop fast then drift slow
-          onComplete: () => {
-            (trackingRef.current as any).isLandingDecelerating = false;
-          }
+          timeScale: commands.setInteractiveTimescale,
+          duration: commands.setInteractiveTimescale === 1.0 ? 2.2 : DURATIONS.PROCESSING_TWEEN,
+          ease: commands.setInteractiveTimescale === 1.0 ? 'power3.out' : 'power1.out',
         });
       }
 
-      // 2. Handle interactive text-computation velocity scaling transitions
-      if (isProcessing) {
-        gsap.to(centerCubeRef.current.scale, { x: SCALES.CENTER_CUBE_PROCESSING, y: SCALES.CENTER_CUBE_PROCESSING, z: SCALES.CENTER_CUBE_PROCESSING, duration: DURATIONS.PROCESSING_TWEEN, ease: 'power2.out' });
-        if (ambientTumbleTween.current) {
-          (trackingRef.current as any).isLandingDecelerating = false;
-          gsap.killTweensOf(ambientTumbleTween.current);
-          gsap.to(ambientTumbleTween.current, { timeScale: 4.5, duration: DURATIONS.PROCESSING_TWEEN, ease: 'power1.out' });
-        }
-      } else {
-        gsap.to(centerCubeRef.current.scale, { x: SCALES.CENTER_CUBE_BASELINE, y: SCALES.CENTER_CUBE_BASELINE, z: SCALES.CENTER_CUBE_BASELINE, duration: DURATIONS.PROCESSING_TWEEN, ease: 'power2.out' });
-        
-        if (ambientTumbleTween.current && !(trackingRef.current as any).isLandingDecelerating) {
-          gsap.to(ambientTumbleTween.current, { timeScale: 1.0, duration: DURATIONS.PROCESSING_TWEEN, ease: 'power1.out' });
-        }
+      // Handle raw static setups for immediate fast-forward reloads
+      if (commands.setInteractiveTimescale === 1.0 && !ambientTumbleTween.current) {
+        gsap.set(mesh.scale, { x: SCALES.CENTER_CUBE_BASELINE, y: SCALES.CENTER_CUBE_BASELINE, z: SCALES.CENTER_CUBE_BASELINE });
+        ambientTumbleTween.current = gsap.to(mesh.rotation, { x: '+=6.28', y: '+=6.28', duration: 12, repeat: -1, ease: 'none' });
+      }
+
+      // Handle interactive scale alterations on idle processing cycles
+      if (commands.setInteractiveTimescale === 4.5) {
+        gsap.to(mesh.scale, { x: SCALES.CENTER_CUBE_PROCESSING, y: SCALES.CENTER_CUBE_PROCESSING, z: SCALES.CENTER_CUBE_PROCESSING, duration: DURATIONS.PROCESSING_TWEEN, ease: 'power2.out' });
+      } else if (commands.setInteractiveTimescale === 1.0 && progress === 100 && loadersVisible === false) {
+        gsap.to(mesh.scale, { x: SCALES.CENTER_CUBE_BASELINE, y: SCALES.CENTER_CUBE_BASELINE, z: SCALES.CENTER_CUBE_BASELINE, duration: DURATIONS.PROCESSING_TWEEN, ease: 'power2.out' });
       }
     }
-  }, { dependencies: [visualPhase, isProcessing, cubeColor] });
+
+    // --- State Synchronization Output Gates ---
+    if (commands.updateInterfaceVisibility !== null) {
+      setInterfaceVisible(commands.updateInterfaceVisibility);
+    }
+
+    // 🎯 HARD PURGE EXECUTED ONLY ON A GENUINE EMERGENCY RESET EVENT
+    if (commands.triggerEmergencyReset) {
+      if (exitTimelineRef.current) { exitTimelineRef.current.kill(); exitTimelineRef.current = null; }
+      if (ambientTumbleTween.current) { ambientTumbleTween.current.kill(); ambientTumbleTween.current = null; }
+      gsap.set(mesh.scale, { x: 0, y: 0, z: 0 });
+      gsap.set(mesh.rotation, { x: 0, y: 0, z: 0 });
+      
+      if (loaderCubeRef.current) gsap.set(loaderCubeRef.current.scale, { x: 0, y: 0, z: 0 });
+      if (loaderHelixRef.current) gsap.set(loaderHelixRef.current.scale, { x: 0, y: 0, z: 0 });
+      if (loaderTorusRef.current) gsap.set(loaderTorusRef.current.scale, { x: 0, y: 0, z: 0 });
+    }
+  });
 
   return (
     <BackgroundSceneView
