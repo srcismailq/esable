@@ -3,8 +3,7 @@ A FinOps assistant that lets you query your product's financial health in simple
 
 Just ask "which marketing channels are producing the highest return on investment in the last 6 months?" and see data grounded in your telemetry.
 
-https://github.com/user-attachments/assets/bc8e4058-e215-47e6-bbe7-b2b11e5c27cd
-
+https://github.com/user-attachments/assets/af3a6720-947b-44f3-ba34-cc32901f96b7
 
 > 💡 **Architectural Pragmatism: Why Postgres for a "Lakehouse"?**
 > 
