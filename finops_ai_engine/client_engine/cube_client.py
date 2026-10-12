@@ -72,7 +72,7 @@ async def execute_cube_query(
             # OPTIMIZATION: Use explicit 'from transport_err' chaining to preserve low-level trace contracts
             raise ConnectionError(
                 f"Network transport failure at target endpoint: {settings.cube_api_url}. "
-                f"Verify that your Minikube port-forward tunnel is open."
+                f"Verify that your  port-forward tunnel is open."
             ) from transport_err
     
     raise TimeoutError(

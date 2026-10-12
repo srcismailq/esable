@@ -58,7 +58,7 @@ async def translate_query_node(state: EngineState, config: RunnableConfig) -> Di
 async def execute_query_node(state: EngineState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Node 2: Extracts the long-lived HTTP client pool to execute the query payload 
-    across the port-forward tunnel into your Minikube cluster.
+    across the port-forward tunnel
     """
     logger.info("Executing Node: [execute_query_node]")
     

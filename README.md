@@ -113,124 +113,29 @@ The platform cleanly decouples live storage volumes from active runtime clients 
 *** 
 ## <a id="setup"></a> 🛠️ 4. Installation Runbook
 
-## ⚡ Quick Start (Docker Compose)
-
-The fastest way to launch the complete ecosystem without managing local Kubernetes clusters.
-
-### 1. Configure Your Credentials
-Before booting the stack, configure your environment tokens to match the application's verification rules:
+## ⚡ Quick Start 
+### 1. Install the dependencies
+Run the following command to download and install all the required project dependencies in root folder:
+```bash
+npm install
+```
+### 2. Configure Your Credentials
 
 Create a `.env` file inside the `finops_ai_engine/` directory:
 ```bash
-# Target AI model variant hosted on Groq Cloud
-LLM_MODEL="openai/gpt-oss-20b"
+
 GROQ_API_KEY="gsk_your_validated_groq_cloud_key"
 
-# Semantic Layer Target (Docker Internal Network or Localhost)
-CUBE_API_URL="http://localhost:4000/cubejs-api/v1/load"
-CUBEJS_API_SECRET="cube_secure_token_abc123_development"
 ```
 
 ### 2. Boot the Infrastructure
 Launch the lakehouse infrastructure, semantic API, and analytical databases instantly:
 ```bash
-docker compose up
+npm run dev:backend
 ```
-*Note: Wait for the logs to display the final initialization success message before proceeding.*
 
-### 3. Launch the AI Client
+### 3. Launch the Frontend
 Open a second terminal window, navigate to the client engine folder, and fire up the interactive conversational workspace:
 ```bash
-cd finops_ai_engine
-uv run -m client_engine.cli
-```
-
-## 🛠️ Detailed Installation Runbook (Kubernetes)
-
-If you prefer to provision localized infrastructure manually, follow this chronological sequence to stream telemetry and launch the engine.
-
-### 1. Provision Cluster Infrastructure
-Spin up a localized Kubernetes cluster with adequate hardware resources and deploy your data lakehouse and semantic layer manifests.
-
-```bash
-# Note: Initial Setup for individual pods may take a while, if pods seem stuck, wait for 2-3 minutes. 
-
-# Start Minikube with dedicated resources
-minikube start --cpus=4 --memory=8192
-
-# Deploy Postgres Lakehouse Persistence Tier
-cd data_lakehouse
-kubectl create configmap postgres-init-config --from-file=init.sql
-kubectl apply -f postgres-pvc.yaml
-kubectl apply -f postgres-lakehouse.yaml
-
-
-# Deploy Cube.js Semantic API Layer (Bypasses symlink collisions via InitContainer)
-cd ../cube_api
-kubectl create configmap cube-schema-config --from-file=DailyB2CMetrics.yml
-kubectl apply -f cube-deployment.yaml
-```
-
-### 2. Forward Network Tunnels
-Route container traffic out of your isolated Minikube network to your local host runtime. 
-
-> 💡 **Note:** Open a separate terminal window or tab to run these commands so they can remain active in the background. Wait for the pods to change status to Running before executing these.
-
-```bash
-kubectl port-forward svc/cubejs-service 4000:4000
-# In another terminal window:
-kubectl port-forward svc/postgres-lakehouse-service 5432:5432
-```
-
-### 3. Initialize Python Virtual Environment
-Navigate back to your project root to initialize a unified virtual environment. This shared space isolates all global dependencies for your dbt core models, the raw mock data generator, and the conversational AI client.
-
-```bash
-# Jump up to the project root directory
-cd ..
-
-# Sync all workspace dependencies instantly using the project lockfile
-uv sync
-```
-
-### 4. Seed the 3-Year Chronological Simulated Lakehouse
-Execute your background pipeline script to truncate the landing tables and inject a memory-safe, 3-year chronological stream of simulated application telemetry, weekend volume spikes, code version rollouts, and infrastructure invoice anomalies.
-
-```bash
-cd data_lakehouse/mock_data_generation
-uv run generate_3_year_data.py
-```
-
-### 5. Compile and Execute dbt Analytical Marts
-Since your database credentials map to a local playground environment, your profiles configurations are checked in right at the project root directory. Compile your models and execute automated data assertions effortlessly without modifying a global system file.
-
-```bash
-cd ../analytics_warehouse
-
-# Run dbt using the checked-in local profiles directory layout
-uv run dbt deps
-uv run dbt debug --profiles-dir .
-uv run dbt run --profiles-dir .
-```
-
-### 6. Launch the Conversational AI Runtime
-Configure your environment access tokens to match the application's strict Pydantic validation rules, and open the interactive command-line workspace.
-
-Create your local variable envelope configurations:
-```bash
-# Create a local .env file inside: finops_ai_client/.env
-
-# The target AI model variant hosted on Groq Cloud
-LLM_MODEL="openai/gpt-oss-20b"
-GROQ_API_KEY="gsk_your_validated_groq_cloud_key"
-
-# Semantic Layer Tunnel Target (Minikube Local Gateway)
-CUBE_API_URL="http://localhost:4000/cubejs-api/v1/load"
-CUBEJS_API_SECRET="cube_secure_token_abc123"
-```
-
-Fire off the thread-isolated terminal runloop:
-```bash
-cd ../../finops_ai_engine
-python -m client_engine.cli
+npm run dev:frontend
 ```

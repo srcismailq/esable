@@ -6,7 +6,6 @@ from psycopg2.extras import execute_values
 import uuid
 import time
 
-# Connection string mapping to your active Minikube port-forward tunnel
 DB_CONN = "host=localhost port=5432 dbname=metrics_lakehouse user=lakehouse_admin password=lakehouse_secure_pass123"
 
 # Domain boundaries for realistic analytical data generation
@@ -87,7 +86,7 @@ def generate_daily_session_pool(current_version, carry_over_sessions, pool_size=
     return session_pool
 
 def run_pipeline():
-    print("🚀 Connecting to Minikube PostgreSQL Lakehouse...")
+    print("🚀 Connecting to the PostgreSQL Lakehouse...")
     
     try:
         with psycopg2.connect(DB_CONN) as conn:
@@ -223,7 +222,7 @@ def run_pipeline():
                         flush_trigger_time = time.perf_counter()
                         python_duration = flush_trigger_time - batch_start_time
                         total_python_time += python_duration
-                        print(f"📦 Streaming batch to Minikube... Chronological Milestone: Day {day_offset + 1}/{total_days} ({current_date.strftime('%Y-%m-%d')})")
+                        print(f"📦 Streaming batch to DB... Chronological Milestone: Day {day_offset + 1}/{total_days} ({current_date.strftime('%Y-%m-%d')})")
 
                         db_write_start = time.perf_counter()
 
@@ -240,12 +239,12 @@ def run_pipeline():
                         weekly_batch.clear()
                         batch_start_time = time.perf_counter()
                         
-        print("\n🎉 Success! Memory-safe 3-year raw data lakehouse ingestion complete.")
-        print("\n📊 --- Pipeline Ingestion Performance Summary ---")
-        print(f"⏱️ Total Time spent computing Python code:  {total_python_time:.2f} seconds")
-        print(f"⚡ Total Time spent writing over K8s tunnel: {total_db_time:.2f} seconds")
-        print(f"🚀 Combined execution lifetime:            {total_python_time + total_db_time:.2f} seconds")
-        print("💡 Open up your terminal, fire off your dbt run, and check out your fresh semantic data layer insights!")
+        #print("\n🎉 Success! Memory-safe 3-year raw data lakehouse ingestion complete.")
+        #print("\n📊 --- Pipeline Ingestion Performance Summary ---")
+        #print(f"⏱️ Total Time spent computing Python code:  {total_python_time:.2f} seconds")
+        #print(f"⚡ Total Time spent writing over K8s tunnel: {total_db_time:.2f} seconds")
+        #print(f"🚀 Combined execution lifetime:            {total_python_time + total_db_time:.2f} seconds")
+        #print("💡 Open up your terminal, fire off your dbt run, and check out your fresh semantic data layer insights!")
         
     except psycopg2.Error as db_err:
         print(f"❌ Database execution failure: {db_err}")

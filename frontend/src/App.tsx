@@ -2,12 +2,13 @@
 import { useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { useAppOrchestrator } from './store/useAppOrchestrator';
-import BackgroundCanvasManager from './Background/components/BackgroundCanvasManager';
+import BackgroundCanvasManager from './Background/components/BackgroundCanvasManager.js';
 import { useQueryEngine } from './QueryForm/hooks/useQueryEngine';
 import QueryForm from './QueryForm/components/QueryForm';
 import AnalystReport from './QueryForm/components/AnalystReport';
 import LoadingScreen from './LoadingScreen/components/LoadingScreen';
 import { globalInfraManager } from './LoadingScreen/services/InfraService.js';
+import { Leva } from 'leva';
 
 export default function App() {
   const { userQuery, responsePayload, isLoading, errorMessage, setUserQuery, submitQuery } = useQueryEngine();
@@ -35,6 +36,7 @@ export default function App() {
 
       <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0, pointerEvents: 'none' }}>
         <Canvas>
+          <Leva hidden/>
           <BackgroundCanvasManager />
         </Canvas>
       </div>
